@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://www.flowable.org/processdef">
+
+    <process id="holidayRequest" name="请假流程">
+        <startEvent id="startEvent"/>
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="branch1"/>
+        <userTask id="branch1" name="分支1" flowable:assignee="${initiator}">
+            <documentation>分支1</documentation>
+        </userTask>
+        <sequenceFlow id="flow2" sourceRef="branch1" targetRef="endEvent"/>
+        <sequenceFlow id="flow3" sourceRef="startEvent" targetRef="branch2"/>
+        <userTask id="branch2" name="分支2" flowable:assignee="${initiator}">
+            <documentation>分支2</documentation>
+        </userTask>
+        <sequenceFlow id="flow4" sourceRef="branch2" targetRef="endEvent"/>
+        <endEvent id="endEvent"/>
+    </process>
+
+</definitions>
