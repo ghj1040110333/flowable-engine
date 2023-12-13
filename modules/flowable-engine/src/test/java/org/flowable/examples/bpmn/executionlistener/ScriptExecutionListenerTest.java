@@ -13,13 +13,10 @@
 package org.flowable.examples.bpmn.executionlistener;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.List;
 
-import org.flowable.common.engine.api.FlowableException;
-import org.flowable.common.engine.api.FlowableIllegalArgumentException;
 import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
@@ -30,13 +27,12 @@ import org.junit.jupiter.api.Test;
 
 /**
  * @author Tijs Rademakers
- * @author Filip Hrisafov
  */
 public class ScriptExecutionListenerTest extends PluggableFlowableTestCase {
 
     @Test
     @Deployment(resources = { "org/flowable/examples/bpmn/executionlistener/ScriptExecutionListenerTest.bpmn20.xml" })
-    public void testExecutionListener() {
+    public void testScriptExecutionListener() {
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("scriptExecutionListenerProcess");
 
         if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
@@ -49,26 +45,6 @@ public class ScriptExecutionListenerTest extends PluggableFlowableTestCase {
                             tuple("myVar", "BAR")
                     );
         }
-    }
-
-    @Test
-    @Deployment
-    public void testThrowFlowableIllegalArgumentException() {
-        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("scriptExecutionListenerProcess"))
-                .isInstanceOf(FlowableIllegalArgumentException.class)
-                .hasNoCause()
-                .hasMessage("Illegal argument in listener");
-    }
-
-    @Test
-    @Deployment
-    public void testThrowNonFlowableException() {
-        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("scriptExecutionListenerProcess"))
-                .isInstanceOf(FlowableException.class)
-                .hasMessageContaining("java.lang.RuntimeException: Illegal argument in listener in <eval> at line number 2 at column number 28")
-                .rootCause()
-                .isExactlyInstanceOf(RuntimeException.class)
-                .hasMessage("Illegal argument in listener");
     }
 
 }

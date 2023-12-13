@@ -41,7 +41,8 @@ public abstract class EmailTestCase extends PluggableFlowableTestCase {
         initialMailServers = mailServers == null ? null : new HashMap<>(mailServers);
         boolean serverUpAndRunning = false;
         while (!serverUpAndRunning) {
-            wiser = Wiser.port(5025);
+            wiser = new Wiser();
+            wiser.setPort(5025);
 
             try {
                 wiser.start();
@@ -63,13 +64,6 @@ public abstract class EmailTestCase extends PluggableFlowableTestCase {
 
         processEngineConfiguration.setMailServerForceTo(initialForceTo);
         processEngineConfiguration.setMailServers(initialMailServers);
-        reinitilizeMailClients();
-    }
-
-    protected void reinitilizeMailClients() {
-        processEngineConfiguration.setDefaultMailClient(null);
-        processEngineConfiguration.getMailClients().clear();
-        processEngineConfiguration.initMailClients();
     }
 
     protected void addMailServer(String tenantId, String defaultFrom, String forceTo) {

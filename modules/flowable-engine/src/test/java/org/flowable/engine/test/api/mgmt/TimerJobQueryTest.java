@@ -15,23 +15,15 @@ package org.flowable.engine.test.api.mgmt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import org.flowable.common.engine.impl.interceptor.Command;
-import org.flowable.common.engine.impl.interceptor.CommandContext;
-import org.flowable.common.engine.impl.interceptor.CommandExecutor;
 import org.flowable.engine.impl.jobexecutor.TriggerTimerEventJobHandler;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
-import org.flowable.engine.impl.util.CommandContextUtil;
 import org.flowable.engine.repository.Deployment;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.job.api.Job;
-import org.flowable.job.api.JobInfo;
-import org.flowable.job.service.JobService;
-import org.flowable.job.service.impl.persistence.entity.JobEntity;
 import org.flowable.job.service.impl.persistence.entity.TimerJobEntity;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,11 +67,6 @@ public class TimerJobQueryTest extends PluggableFlowableTestCase {
     public void testByProcessInstanceId() {
         assertThat(managementService.createTimerJobQuery().processInstanceId(processInstanceId).list()).hasSize(3);
     }
-    
-    @Test
-    public void testWithoutProcessInstanceId() {
-        assertThat(managementService.createTimerJobQuery().withoutProcessInstanceId().list()).hasSize(0);
-    }
 
     @Test
     public void testByExecutionId() {
@@ -92,25 +79,9 @@ public class TimerJobQueryTest extends PluggableFlowableTestCase {
 
     @Test
     public void testByProcessDefinitionId() {
-        String processDefinitionId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
-        assertThat(managementService.createTimerJobQuery().processDefinitionId(processDefinitionId).count()).isEqualTo(3);
-        assertThat(managementService.createTimerJobQuery().processDefinitionId(processDefinitionId).list()).hasSize(3);
-    }
-
-    @Test
-    public void testByProcessDefinitionKey() {
-        String processDefinitionKey = repositoryService.createProcessDefinitionQuery().singleResult().getKey();
-        assertThat(managementService.createTimerJobQuery().processDefinitionKey(processDefinitionKey).count()).isEqualTo(3);
-        assertThat(managementService.createTimerJobQuery().processDefinitionKey(processDefinitionKey).list()).hasSize(3);
-
-        assertThat(managementService.createTimerJobQuery().processDefinitionKey("invalid").singleResult()).isNull();
-        assertThat(managementService.createTimerJobQuery().processDefinitionKey("invalid").count()).isZero();
-        assertThat(managementService.createTimerJobQuery().processDefinitionKey("invalid").list()).isEmpty();
-    }
-    
-    @Test
-    public void testWithoutScopeId() {
-        assertThat(managementService.createTimerJobQuery().withoutScopeId().list()).hasSize(3);
+        String processDefinitionid = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+        assertThat(managementService.createTimerJobQuery().processDefinitionId(processDefinitionid).count()).isEqualTo(3);
+        assertThat(managementService.createTimerJobQuery().processDefinitionId(processDefinitionid).list()).hasSize(3);
     }
 
     @Test
@@ -127,32 +98,6 @@ public class TimerJobQueryTest extends PluggableFlowableTestCase {
         assertThat(managementService.createTimerJobQuery().handlerType(TriggerTimerEventJobHandler.TYPE).count()).isEqualTo(3);
         assertThat(managementService.createTimerJobQuery().handlerType(TriggerTimerEventJobHandler.TYPE).list()).hasSize(3);
         assertThat(managementService.createTimerJobQuery().handlerType("invalid").count()).isZero();
-    }
-
-    @Test
-    public void testTimerJobQueryByHandlerTypes() {
-
-        List<String> testTypes = new ArrayList<>();
-        createTimerJobWithHandlerType("Type1");
-        createTimerJobWithHandlerType("Type2");
-
-        assertThat(managementService.createTimerJobQuery().handlerType("Type1").singleResult()).isNotNull();
-        assertThat(managementService.createTimerJobQuery().handlerType("Type2").singleResult()).isNotNull();
-
-        testTypes.add("TestType");
-        assertThat(managementService.createTimerJobQuery().handlerTypes(testTypes).singleResult()).isNull();
-
-        testTypes.add("Type1");
-        assertThat(managementService.createTimerJobQuery().handlerTypes(testTypes).count()).isEqualTo(1);
-        assertThat(managementService.createTimerJobQuery().handlerTypes(testTypes).singleResult().getJobHandlerType()).isEqualTo("Type1");
-
-        testTypes.add("Type2");
-        assertThat(managementService.createTimerJobQuery().handlerTypes(testTypes).count()).isEqualTo(2);
-        assertThat(managementService.createTimerJobQuery().handlerTypes(testTypes).list())
-                .extracting(JobInfo::getJobHandlerType)
-                .containsExactlyInAnyOrder("Type1", "Type2");
-        managementService.deleteTimerJob(managementService.createTimerJobQuery().handlerType("Type1").singleResult().getId());
-        managementService.deleteTimerJob(managementService.createTimerJobQuery().handlerType("Type2").singleResult().getId());
     }
 
     @Test
@@ -210,23 +155,4 @@ public class TimerJobQueryTest extends PluggableFlowableTestCase {
         assertThat(managementService.createTimerJobQuery().correlationId("invalid").count()).isZero();
     }
 
-    private void createTimerJobWithHandlerType(String handlerType) {
-        CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutor();
-        commandExecutor.execute(new Command<Void>() {
-
-            @Override
-            public Void execute(CommandContext commandContext) {
-                JobService jobService = CommandContextUtil.getJobService(commandContext);
-
-                JobEntity jobEntity = jobService.createJob();
-                jobEntity.setJobType(Job.JOB_TYPE_TIMER);
-                jobEntity.setRetries(0);
-                jobEntity.setJobHandlerType(handlerType);
-                jobService.insertJob(jobEntity);
-                CommandContextUtil.getTimerJobService(commandContext).moveJobToTimerJob(jobEntity);
-                assertThat(jobEntity.getId()).isNotNull();
-                return null;
-            }
-        });
-    }
 }

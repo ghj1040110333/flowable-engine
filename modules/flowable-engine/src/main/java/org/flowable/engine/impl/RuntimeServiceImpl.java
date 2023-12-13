@@ -39,7 +39,6 @@ import org.flowable.engine.impl.cmd.CompleteAdhocSubProcessCmd;
 import org.flowable.engine.impl.cmd.DeleteIdentityLinkForProcessInstanceCmd;
 import org.flowable.engine.impl.cmd.DeleteMultiInstanceExecutionCmd;
 import org.flowable.engine.impl.cmd.DeleteProcessInstanceCmd;
-import org.flowable.engine.impl.cmd.DeleteProcessInstancesByIdCmd;
 import org.flowable.engine.impl.cmd.DispatchEventCommand;
 import org.flowable.engine.impl.cmd.EvaluateConditionalEventsCmd;
 import org.flowable.engine.impl.cmd.ExecuteActivityForAdhocSubProcessCmd;
@@ -67,14 +66,9 @@ import org.flowable.engine.impl.cmd.MessageEventReceivedCmd;
 import org.flowable.engine.impl.cmd.RemoveEventConsumerCommand;
 import org.flowable.engine.impl.cmd.RemoveEventListenerCommand;
 import org.flowable.engine.impl.cmd.RemoveExecutionVariablesCmd;
-import org.flowable.engine.impl.cmd.RemoveProcessInstanceAssigneeCmd;
-import org.flowable.engine.impl.cmd.RemoveProcessInstanceOwnerCmd;
 import org.flowable.engine.impl.cmd.SetExecutionVariablesCmd;
-import org.flowable.engine.impl.cmd.SetProcessInstanceAssigneeCmd;
 import org.flowable.engine.impl.cmd.SetProcessInstanceBusinessKeyCmd;
-import org.flowable.engine.impl.cmd.SetProcessInstanceBusinessStatusCmd;
 import org.flowable.engine.impl.cmd.SetProcessInstanceNameCmd;
-import org.flowable.engine.impl.cmd.SetProcessInstanceOwnerCmd;
 import org.flowable.engine.impl.cmd.SignalEventReceivedCmd;
 import org.flowable.engine.impl.cmd.StartProcessInstanceAsyncCmd;
 import org.flowable.engine.impl.cmd.StartProcessInstanceByMessageCmd;
@@ -101,10 +95,6 @@ import org.flowable.form.api.FormInfo;
 import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.identitylink.api.IdentityLinkType;
 import org.flowable.variable.api.persistence.entity.VariableInstance;
-import org.flowable.variable.api.runtime.NativeVariableInstanceQuery;
-import org.flowable.variable.api.runtime.VariableInstanceQuery;
-import org.flowable.variable.service.impl.NativeVariableInstanceQueryImpl;
-import org.flowable.variable.service.impl.VariableInstanceQueryImpl;
 
 /**
  * @author Tom Baeyens
@@ -197,11 +187,6 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     }
 
     @Override
-    public void bulkDeleteProcessInstances(Collection<String> processInstanceIds, String deleteReason) {
-        commandExecutor.execute(new DeleteProcessInstancesByIdCmd(processInstanceIds, deleteReason));
-    }
-
-    @Override
     public ExecutionQuery createExecutionQuery() {
         return new ExecutionQueryImpl(commandExecutor, configuration);
     }
@@ -229,11 +214,6 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     @Override
     public void updateBusinessKey(String processInstanceId, String businessKey) {
         commandExecutor.execute(new SetProcessInstanceBusinessKeyCmd(processInstanceId, businessKey));
-    }
-    
-    @Override
-    public void updateBusinessStatus(String processInstanceId, String businessStatus) {
-        commandExecutor.execute(new SetProcessInstanceBusinessStatusCmd(processInstanceId, businessStatus));
     }
 
     @Override
@@ -374,16 +354,6 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     public void removeVariablesLocal(String executionId, Collection<String> variableNames) {
         commandExecutor.execute(new RemoveExecutionVariablesCmd(executionId, variableNames, true));
     }
-    
-    @Override
-    public VariableInstanceQuery createVariableInstanceQuery() {
-        return new VariableInstanceQueryImpl(commandExecutor, configuration.getVariableServiceConfiguration());
-    }
-
-    @Override
-    public NativeVariableInstanceQuery createNativeVariableInstanceQuery() {
-        return new NativeVariableInstanceQueryImpl(commandExecutor, configuration.getVariableServiceConfiguration());
-    }
 
     @Override
     public Map<String, DataObject> getDataObjects(String executionId) {
@@ -486,26 +456,6 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     @Override
     public void evaluateConditionalEvents(String processInstanceId, Map<String, Object> processVariables) {
         commandExecutor.execute(new EvaluateConditionalEventsCmd(processInstanceId, processVariables));
-    }
-
-    @Override
-    public void setOwner(String processInstanceId, String userId) {
-        commandExecutor.execute(new SetProcessInstanceOwnerCmd(processInstanceId, userId));
-    }
-
-    @Override
-    public void removeOwner(String processInstanceId) {
-        commandExecutor.execute(new RemoveProcessInstanceOwnerCmd(processInstanceId));
-    }
-
-    @Override
-    public void setAssignee(String processInstanceId, String userId) {
-        commandExecutor.execute(new SetProcessInstanceAssigneeCmd(processInstanceId, userId));
-    }
-
-    @Override
-    public void removeAssignee(String processInstanceId) {
-        commandExecutor.execute(new RemoveProcessInstanceAssigneeCmd(processInstanceId));
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.engine.history.HistoricProcessInstance;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
-import org.flowable.engine.runtime.ActivityInstance;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.test.Deployment;
 import org.flowable.task.api.Task;
@@ -107,101 +106,6 @@ public class HistoricProcessInstanceQueryTest extends PluggableFlowableTestCase 
     }
 
     @Test
-    public void testQueryByCallbackId() {
-        deployOneTaskTestProcess();
-        runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .start();
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .callbackId("callbackId")
-                .start();
-
-        if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().count()).isEqualTo(2);
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackId("callbackId").count()).isEqualTo(1);
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackId("callbackId").list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-
-            assertThat(historyService.createHistoricProcessInstanceQuery()
-                    .or()
-                    .processInstanceCallbackId("callbackId")
-                    .processInstanceName("doesn't exist")
-                    .endOr().list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackId("invalid").list()).isEmpty();
-        }
-    }
-
-    @Test
-    public void testQueryByCallbackType() {
-        deployOneTaskTestProcess();
-        runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .start();
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .callbackType("callbackType")
-                .start();
-
-        if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().count()).isEqualTo(2);
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackType("callbackType").count()).isEqualTo(1);
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackType("callbackType").list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-
-            assertThat(historyService.createHistoricProcessInstanceQuery()
-                    .or()
-                    .processInstanceCallbackType("callbackType")
-                    .processInstanceName("doesn't exist")
-                    .endOr().list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().processInstanceCallbackType("invalid").list()).isEmpty();
-        }
-    }
-
-    @Test
-    public void testQueryByWithoutCallbackId() {
-        deployOneTaskTestProcess();
-        runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .callbackId("callbackId")
-                .start();
-
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("oneTaskProcess")
-                .start();
-
-        if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().count()).isEqualTo(2);
-            assertThat(historyService.createHistoricProcessInstanceQuery().withoutProcessInstanceCallbackId().count()).isEqualTo(1);
-
-            assertThat(historyService.createHistoricProcessInstanceQuery().withoutProcessInstanceCallbackId().list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-
-            assertThat(historyService.createHistoricProcessInstanceQuery()
-                    .or()
-                    .withoutProcessInstanceCallbackId()
-                    .processInstanceName("doesn't exist")
-                    .endOr().list())
-                    .extracting(HistoricProcessInstance::getId)
-                    .contains(processInstance.getId());
-        }
-    }
-
-    @Test
     public void testQueryByReferenceId() {
         deployOneTaskTestProcess();
         ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
@@ -245,17 +149,17 @@ public class HistoricProcessInstanceQueryTest extends PluggableFlowableTestCase 
             assertThat(historyService.createHistoricProcessInstanceQuery().activeActivityId("task1").singleResult().getId()).isEqualTo(processInstance2.getId());
             assertThat(historyService.createHistoricProcessInstanceQuery().activeActivityId("task2").count()).isZero();
             
-            Set<String> activityIds = new HashSet<>();
+            Set<String> activityIds = new HashSet<String>();
             activityIds.add("task1");
             activityIds.add("task2");
             assertThat(historyService.createHistoricProcessInstanceQuery().activeActivityIds(activityIds).singleResult().getId()).isEqualTo(processInstance2.getId());
         
-            activityIds = new HashSet<>();
+            activityIds = new HashSet<String>();
             activityIds.add("task1");
             activityIds.add("task3");
             assertThat(historyService.createHistoricProcessInstanceQuery().activeActivityIds(activityIds).count()).isEqualTo(2);
             
-            activityIds = new HashSet<>();
+            activityIds = new HashSet<String>();
             activityIds.add("task2");
             activityIds.add("task3");
             assertThat(historyService.createHistoricProcessInstanceQuery().activeActivityIds(activityIds).singleResult().getId()).isEqualTo(processInstance1.getId());
@@ -452,109 +356,6 @@ public class HistoricProcessInstanceQueryTest extends PluggableFlowableTestCase 
                             tuple("With string value", processWithStringValue.getId())
                     );
         }
-    }
-
-    @Test
-    @Deployment(resources = {
-            "org/flowable/engine/test/api/simpleParallelCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleInnerCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleProcessWithUserTasks.bpmn20.xml",
-            "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml"
-    })
-    public void testQueryByRootScopeId() {
-        runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-
-        ActivityInstance firstLevelCallActivity1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(processInstance.getId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1_1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance thirdLevelCallActivity1_1_1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(secondLevelCallActivity1_1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1_2 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity2").singleResult();
-
-        ActivityInstance firstLevelCallActivity2 = runtimeService.createActivityInstanceQuery().processInstanceId(processInstance.getId())
-                .activityId("callActivity2").singleResult();
-
-        taskService.createTaskQuery().list().forEach(task -> taskService.complete(task.getId()));
-        List<HistoricProcessInstance> result = historyService.createHistoricProcessInstanceQuery().processInstanceRootScopeId(processInstance.getId()).list();
-
-        assertThat(result)
-                .extracting(HistoricProcessInstance::getId, HistoricProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(firstLevelCallActivity1.getCalledProcessInstanceId(), "simpleInnerParallelCallActivity"),
-                        tuple(secondLevelCallActivity1_1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(thirdLevelCallActivity1_1_1.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(secondLevelCallActivity1_2.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(firstLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
-
-        result = historyService.createHistoricProcessInstanceQuery().or().processInstanceRootScopeId(processInstance.getId()).endOr().list();
-
-        assertThat(result)
-                .extracting(HistoricProcessInstance::getId, HistoricProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(firstLevelCallActivity1.getCalledProcessInstanceId(), "simpleInnerParallelCallActivity"),
-                        tuple(secondLevelCallActivity1_1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(thirdLevelCallActivity1_1_1.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(secondLevelCallActivity1_2.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(firstLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
-    }
-
-    @Test
-    @Deployment(resources = {
-            "org/flowable/engine/test/api/simpleParallelCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleInnerCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleProcessWithUserTasks.bpmn20.xml",
-            "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml"
-    })
-    public void testQueryByParentScopeId() {
-        runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-
-        ActivityInstance firstLevelCallActivity1 = runtimeService.createActivityInstanceQuery().processInstanceId(processInstance.getId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-        ActivityInstance secondLevelCallActivity2 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity2").singleResult();
-
-        taskService.createTaskQuery().list().forEach(task -> taskService.complete(task.getId()));
-
-        List<HistoricProcessInstance> result = historyService.createHistoricProcessInstanceQuery().processInstanceParentScopeId(processInstance.getId()).list();
-        assertThat(result).isEmpty();
-
-        result = historyService.createHistoricProcessInstanceQuery().processInstanceParentScopeId(firstLevelCallActivity1.getCalledProcessInstanceId()).list();
-
-        assertThat(result)
-                .extracting(HistoricProcessInstance::getId, HistoricProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(secondLevelCallActivity1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(secondLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
-
-        result = historyService.createHistoricProcessInstanceQuery().or().processInstanceParentScopeId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .endOr().list();
-
-        assertThat(result)
-                .extracting(HistoricProcessInstance::getId, HistoricProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(secondLevelCallActivity1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(secondLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
     }
 
 }

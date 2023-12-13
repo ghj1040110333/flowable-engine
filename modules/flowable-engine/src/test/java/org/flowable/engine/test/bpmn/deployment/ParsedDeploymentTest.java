@@ -15,6 +15,7 @@ package org.flowable.engine.test.bpmn.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +72,7 @@ public class ParsedDeploymentTest extends PluggableFlowableTestCase {
     }
 
     @Test
-    public void testCreateAndQuery() {
+    public void testCreateAndQuery() throws UnsupportedEncodingException {
         DeploymentEntity entity = assembleUnpersistedDeploymentEntity();
 
         ParsedDeploymentBuilderFactory builderFactory = processEngineConfiguration.getParsedDeploymentBuilderFactory();
@@ -110,14 +111,14 @@ public class ParsedDeploymentTest extends PluggableFlowableTestCase {
         return null;
     }
 
-    private DeploymentEntity assembleUnpersistedDeploymentEntity() {
+    private DeploymentEntity assembleUnpersistedDeploymentEntity() throws UnsupportedEncodingException {
         DeploymentEntity entity = new DeploymentEntityImpl();
         entity.addResource(buildResource(IDR_XML_NAME, IDR_PROCESS_XML));
         entity.addResource(buildResource(EN_XML_NAME, EN_PROCESS_XML));
         return entity;
     }
 
-    private ResourceEntity buildResource(String name, String text) {
+    private ResourceEntity buildResource(String name, String text) throws UnsupportedEncodingException {
         ResourceEntityImpl result = new ResourceEntityImpl();
         result.setName(name);
         result.setBytes(text.getBytes(StandardCharsets.UTF_8));

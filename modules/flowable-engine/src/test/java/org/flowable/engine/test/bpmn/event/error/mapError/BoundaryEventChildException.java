@@ -21,15 +21,7 @@ public class BoundaryEventChildException extends BoundaryErrorParentException {
     public BoundaryEventChildException() {
     }
 
-    public BoundaryEventChildException(String message) {
-        super(message);
-    }
-
     public BoundaryEventChildException(Throwable cause) {
         super(cause);
-    }
-
-    public BoundaryEventChildException(String message, Throwable cause) {
-        super(message, cause);
     }
 }

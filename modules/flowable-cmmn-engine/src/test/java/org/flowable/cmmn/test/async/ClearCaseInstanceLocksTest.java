@@ -25,6 +25,7 @@ import org.flowable.cmmn.engine.impl.persistence.entity.CaseInstanceEntityImpl;
 import org.flowable.cmmn.engine.test.CmmnDeployment;
 import org.flowable.cmmn.engine.test.FlowableCmmnTestCase;
 import org.flowable.job.api.Job;
+import org.flowable.job.service.impl.asyncexecutor.AcquiredJobEntities;
 import org.flowable.job.service.impl.cmd.AcquireJobsCmd;
 import org.flowable.job.service.impl.cmd.LockExclusiveJobCmd;
 import org.flowable.job.service.impl.persistence.entity.JobEntity;
@@ -84,9 +85,9 @@ public class ClearCaseInstanceLocksTest extends FlowableCmmnTestCase {
         // Acquire jobs (mimic the async executor behavior)
         List<JobInfoEntity> acquiredJobs = new ArrayList<>();
         while (acquiredJobs.size() < 5) {
-            List<? extends JobInfoEntity> jobs = cmmnEngineConfiguration.getCommandExecutor()
+            AcquiredJobEntities acquiredJobEntities = cmmnEngineConfiguration.getCommandExecutor()
                 .execute(new AcquireJobsCmd(cmmnEngineConfiguration.getAsyncExecutor()));
-            acquiredJobs.addAll(jobs);
+            acquiredJobs.addAll(acquiredJobEntities.getJobs());
         }
 
         // Validate lock owner and time set after acquiring

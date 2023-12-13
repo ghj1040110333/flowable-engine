@@ -20,18 +20,15 @@ import static org.assertj.core.api.Assertions.entry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
 
+import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.impl.history.HistoryLevel;
-import org.flowable.common.engine.impl.scripting.FlowableScriptEvaluationException;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
 import org.flowable.engine.runtime.DataObject;
@@ -1959,7 +1956,7 @@ public class VariablesTest extends PluggableFlowableTestCase {
         String taskId = task.getId();
         try {
             assertThatThrownBy(() -> formService.submitTaskFormData(taskId, new HashMap<>()))
-                    .isExactlyInstanceOf(FlowableScriptEvaluationException.class);
+                    .isExactlyInstanceOf(FlowableException.class);
         } finally {
             runtimeService.deleteProcessInstance(processId, "intentional exception in script task");
         }
@@ -2206,48 +2203,6 @@ public class VariablesTest extends PluggableFlowableTestCase {
         assertThat(customVar.getScopeType())
             .as("custom var scope type")
             .isNull();
-    }
-
-    @Test
-    @Deployment(resources = { "org/flowable/examples/variables/VariablesTest.testBasicVariableOperations.bpmn20.xml" })
-    public void testImmutableEmptyCollectionVariable() {
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("taskAssigneeProcess")
-                .variable("listVar", Collections.emptyList())
-                .variable("setVar", Collections.emptySet())
-                .start();
-
-        VariableInstance variableInstance = runtimeService.getVariableInstance(processInstance.getId(), "listVar");
-
-        assertThat(variableInstance.getTypeName()).isEqualTo("emptyCollection");
-        assertThat(variableInstance.getValue()).asList().isEmpty();
-
-        variableInstance = runtimeService.getVariableInstance(processInstance.getId(), "setVar");
-
-        assertThat(variableInstance.getTypeName()).isEqualTo("emptyCollection");
-        assertThat(variableInstance.getValue())
-                .isInstanceOfSatisfying(Set.class, set -> assertThat(set).isEmpty());
-    }
-
-    @Test
-    @Deployment(resources = { "org/flowable/examples/variables/VariablesTest.testBasicVariableOperations.bpmn20.xml" })
-    public void testEmptyCollectionVariable() {
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("taskAssigneeProcess")
-                .variable("listVar", new ArrayList<>())
-                .variable("setVar", new HashSet<>())
-                .start();
-
-        VariableInstance variableInstance = runtimeService.getVariableInstance(processInstance.getId(), "listVar");
-
-        assertThat(variableInstance.getTypeName()).isEqualTo("serializable");
-        assertThat(variableInstance.getValue()).asList().isEmpty();
-
-        variableInstance = runtimeService.getVariableInstance(processInstance.getId(), "setVar");
-
-        assertThat(variableInstance.getTypeName()).isEqualTo("serializable");
-        assertThat(variableInstance.getValue())
-                .isInstanceOfSatisfying(Set.class, set -> assertThat(set).isEmpty());
     }
 
     protected void addVariableTypeIfNotExists(VariableType variableType) {

@@ -20,13 +20,11 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
-import org.flowable.cmmn.api.history.HistoricPlanItemInstance;
 import org.flowable.cmmn.api.runtime.CaseInstance;
 import org.flowable.cmmn.api.runtime.PlanItemDefinitionType;
 import org.flowable.cmmn.api.runtime.PlanItemInstance;
 import org.flowable.cmmn.api.runtime.PlanItemInstanceState;
 import org.flowable.cmmn.api.runtime.UserEventListenerInstance;
-import org.flowable.cmmn.engine.PlanItemLocalizationManager;
 import org.flowable.cmmn.engine.test.CmmnDeployment;
 import org.flowable.cmmn.engine.test.FlowableCmmnTestCase;
 import org.flowable.task.api.Task;
@@ -645,42 +643,6 @@ public class PlanItemInstanceQueryTest extends FlowableCmmnTestCase {
     }
 
     @Test
-    public void testLocalization() {
-        startInstances(1);
-
-        cmmnEngineConfiguration.setPlanItemLocalizationManager(new PlanItemLocalizationManager() {
-            @Override
-            public void localize(PlanItemInstance planItemInstance, String locale, boolean withLocalizationFallback) {
-                if ("pt".equals(locale)) {
-                    planItemInstance.setLocalizedName("Plano traduzido");
-                }
-            }
-
-            @Override
-            public void localize(HistoricPlanItemInstance historicPlanItemInstance, String locale, boolean withLocalizationFallback) {
-
-            }
-        });
-
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().list())
-                .extracting(PlanItemInstance::getName)
-                .containsExactlyInAnyOrder(
-                        "Stage one",
-                        "Stage two",
-                        "A",
-                        "B"
-                );
-
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().locale("pt").list())
-                .extracting(PlanItemInstance::getName)
-                .containsExactlyInAnyOrder(
-                        "Plano traduzido",
-                        "Plano traduzido",
-                        "Plano traduzido",
-                        "Plano traduzido"
-                );
-    }
-
     public void testQueryVariableValueEqualsAndNotEquals() {
         CaseInstance caseWithStringValue = cmmnRuntimeService.createCaseInstanceBuilder()
                 .caseDefinitionKey("testPlanItemInstanceQuery")
@@ -733,9 +695,7 @@ public class PlanItemInstanceQueryTest extends FlowableCmmnTestCase {
 
         assertThat(planItemWithDoubleValue).isNotNull();
 
-        assertThat(cmmnRuntimeService.hasLocalVariable(planItemWithStringValue.getId(), "var")).isFalse();
         cmmnRuntimeService.setLocalVariable(planItemWithStringValue.getId(), "var", "TEST");
-        assertThat(cmmnRuntimeService.hasLocalVariable(planItemWithStringValue.getId(), "var")).isTrue();
         cmmnRuntimeService.setLocalVariable(planItemWithNullValue.getId(), "var", null);
         cmmnRuntimeService.setLocalVariable(planItemWithLongValue.getId(), "var", 100L);
         cmmnRuntimeService.setLocalVariable(planItemWithDoubleValue.getId(), "var", 45.55);

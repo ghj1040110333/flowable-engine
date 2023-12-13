@@ -24,8 +24,6 @@ import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.engine.history.HistoricActivityInstance;
 import org.flowable.engine.impl.context.Context;
-import org.flowable.engine.impl.jobexecutor.AsyncContinuationJobHandler;
-import org.flowable.engine.impl.jobexecutor.ParallelMultiInstanceActivityCompletionJobHandler;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.JobTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
@@ -35,7 +33,6 @@ import org.flowable.engine.test.Deployment;
 import org.flowable.job.api.Job;
 import org.flowable.job.service.impl.persistence.entity.JobEntity;
 import org.flowable.variable.api.history.HistoricVariableInstance;
-import org.flowable.variable.api.persistence.entity.VariableInstance;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
@@ -73,34 +70,6 @@ public class AsyncTaskTest extends PluggableFlowableTestCase {
         waitForJobExecutorToProcessAllJobs(7000L, 100L);
 
         assertThat(managementService.createJobQuery().count()).isZero();
-    }
-
-    @Test
-    @Deployment
-    public void testAsyncServiceCurrentTenant() {
-        String noTenantInstanceId = runtimeService.startProcessInstanceByKey("asyncService").getProcessInstanceId();
-        String flowableInstanceId = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("asyncService")
-                .overrideProcessDefinitionTenantId("flowable")
-                .start()
-                .getId();
-        String muppetsInstanceId = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("asyncService")
-                .overrideProcessDefinitionTenantId("muppets")
-                .start()
-                .getId();
-
-        assertThat(runtimeService.hasVariable(noTenantInstanceId, "currentTenantVar")).isFalse();
-        assertThat(runtimeService.hasVariable(flowableInstanceId, "currentTenantVar")).isFalse();
-        assertThat(runtimeService.hasVariable(muppetsInstanceId, "currentTenantVar")).isFalse();
-
-        waitForJobExecutorToProcessAllJobs(7000L, 100L);
-
-        VariableInstance variableInstance = runtimeService.getVariableInstance(noTenantInstanceId, "currentTenantVar");
-        assertThat(variableInstance).isNotNull();
-        assertThat((String) variableInstance.getValue()).isNullOrEmpty();
-        assertThat(runtimeService.getVariable(flowableInstanceId, "currentTenantVar")).isEqualTo("flowable");
-        assertThat(runtimeService.getVariable(muppetsInstanceId, "currentTenantVar")).isEqualTo("muppets");
     }
 
     @Test
@@ -524,24 +493,18 @@ public class AsyncTaskTest extends PluggableFlowableTestCase {
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("asyncTask");
 
         // now there should be one job in the database:
-        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).list())
-                .extracting(Job::getJobHandlerType )
-                .containsExactlyInAnyOrder(AsyncContinuationJobHandler.TYPE, AsyncContinuationJobHandler.TYPE, AsyncContinuationJobHandler.TYPE);
+        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).count()).isEqualTo(3);
 
         // execute first of 3 parallel multi instance tasks
         managementService.executeJob(managementService.createJobQuery().processInstanceId(processInstance.getId()).list().get(0).getId());
-        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).list())
-                .extracting(Job::getJobHandlerType )
-                .containsExactlyInAnyOrder(AsyncContinuationJobHandler.TYPE, AsyncContinuationJobHandler.TYPE, ParallelMultiInstanceActivityCompletionJobHandler.TYPE);
+        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).count()).isEqualTo(2);
 
         // execute second of 3 parallel multi instance tasks
-        managementService.executeJob(managementService.createJobQuery().processInstanceId(processInstance.getId()).handlerType(AsyncContinuationJobHandler.TYPE).list().get(0).getId());
-        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).list())
-                .extracting(Job::getJobHandlerType )
-                .containsExactlyInAnyOrder(AsyncContinuationJobHandler.TYPE, ParallelMultiInstanceActivityCompletionJobHandler.TYPE, ParallelMultiInstanceActivityCompletionJobHandler.TYPE);
+        managementService.executeJob(managementService.createJobQuery().processInstanceId(processInstance.getId()).list().get(0).getId());
+        assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).count()).isEqualTo(1);
 
         // execute third of 3 parallel multi instance tasks
-        managementService.executeJob(managementService.createJobQuery().processInstanceId(processInstance.getId()).handlerType(AsyncContinuationJobHandler.TYPE).singleResult().getId());
+        managementService.executeJob(managementService.createJobQuery().processInstanceId(processInstance.getId()).singleResult().getId());
 
         // the job is done
         assertThat(managementService.createJobQuery().processInstanceId(processInstance.getId()).count()).isZero();

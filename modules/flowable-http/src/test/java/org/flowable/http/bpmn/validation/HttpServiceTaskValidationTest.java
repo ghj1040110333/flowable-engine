@@ -14,6 +14,7 @@ package org.flowable.http.bpmn.validation;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.flowable.http.common.impl.BaseHttpActivityDelegate.HTTP_TASK_REQUEST_FIELD_INVALID;
+import static org.flowable.http.common.impl.BaseHttpActivityDelegate.HTTP_TASK_REQUEST_HEADERS_INVALID;
 import static org.flowable.http.common.impl.BaseHttpActivityDelegate.HTTP_TASK_REQUEST_METHOD_INVALID;
 
 import java.util.HashMap;
@@ -42,7 +43,7 @@ public class HttpServiceTaskValidationTest extends HttpServiceTaskTestCase {
     public void testInvalidHeaders() {
         assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("invalidHeaders"))
                 .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageContainingAll("requestHeaders are invalid for Execution[", " - definition 'invalidHeaders:1:", " - activity 'httpGet'");
+                .hasMessage(HTTP_TASK_REQUEST_HEADERS_INVALID);
     }
 
     @Test

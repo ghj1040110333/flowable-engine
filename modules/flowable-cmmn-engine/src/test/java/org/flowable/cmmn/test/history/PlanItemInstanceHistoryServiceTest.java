@@ -14,8 +14,6 @@ package org.flowable.cmmn.test.history;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -364,8 +362,7 @@ public class PlanItemInstanceHistoryServiceTest extends FlowableCmmnTestCase {
                 assertThat(h.getLastAvailableTime().getTime()).isLessThanOrEqualTo(h.getLastStartedTime().getTime());
             });
 
-            //There should be 2 eventListeners the history, one of them "occurred" and is completed (user event listener plan item instance) and one should still be available
-            historicPlanItems = cmmnHistoryService.createHistoricPlanItemInstanceQuery().planItemInstanceDefinitionType(PlanItemDefinitionType.USER_EVENT_LISTENER).list();
+            //There should be 3 eventListeners the history, two of them "occurred" and one should still be available
             assertThat(
                 cmmnHistoryService.createHistoricPlanItemInstanceQuery().planItemInstanceDefinitionType(PlanItemDefinitionType.USER_EVENT_LISTENER).count())
                 .isEqualTo(2);
@@ -534,7 +531,7 @@ public class PlanItemInstanceHistoryServiceTest extends FlowableCmmnTestCase {
     @Test
     @CmmnDeployment
     public void testQueryByUnavailableState() {
-        Date startTime = Date.from(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        Date startTime = new Date();
         setClockTo(startTime);
 
         CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder().caseDefinitionKey("testAvailableCondition").start();

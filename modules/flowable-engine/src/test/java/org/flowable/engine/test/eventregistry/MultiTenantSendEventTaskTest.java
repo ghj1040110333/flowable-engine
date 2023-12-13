@@ -18,7 +18,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.flowable.common.engine.impl.interceptor.EngineConfigurationConstants;
@@ -269,7 +268,7 @@ public class MultiTenantSendEventTaskTest extends FlowableEventRegistryBpmnTestC
         public List<String> receivedEvents = new ArrayList<>();
 
         @Override
-        public void sendEvent(String rawEvent, Map<String, Object> headerMap) {
+        public void sendEvent(String rawEvent) {
             receivedEvents.add(rawEvent);
         }
     }

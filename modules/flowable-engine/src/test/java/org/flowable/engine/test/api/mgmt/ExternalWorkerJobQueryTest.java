@@ -14,23 +14,14 @@
 package org.flowable.engine.test.api.mgmt;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.scope.ScopeTypes;
-import org.flowable.common.engine.impl.interceptor.Command;
-import org.flowable.common.engine.impl.interceptor.CommandContext;
-import org.flowable.common.engine.impl.interceptor.CommandExecutor;
 import org.flowable.engine.impl.jobexecutor.ExternalWorkerTaskCompleteJobHandler;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
-import org.flowable.engine.impl.util.CommandContextUtil;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.test.Deployment;
@@ -39,10 +30,6 @@ import org.flowable.job.api.AcquiredExternalWorkerJob;
 import org.flowable.job.api.ExternalWorkerJob;
 import org.flowable.job.api.ExternalWorkerJobQuery;
 import org.flowable.job.api.Job;
-import org.flowable.job.api.JobInfo;
-import org.flowable.job.service.JobService;
-import org.flowable.job.service.impl.persistence.entity.ExternalWorkerJobEntity;
-import org.flowable.job.service.impl.persistence.entity.ExternalWorkerJobEntityManager;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -88,15 +75,6 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
         assertThat(query.list()).isEmpty();
         assertThat(query.singleResult()).isNull();
     }
-    
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testQueryWithoutProcessInstanceId() {
-        runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery().withoutProcessInstanceId();
-        assertThat(query.count()).isEqualTo(0);
-    }
 
     @Test
     @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
@@ -110,23 +88,6 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
                 .containsOnly(processInstance1.getId(), processInstance2.getId());
 
         query = managementService.createExternalWorkerJobQuery().processDefinitionId("invalid");
-        assertThat(query.count()).isZero();
-        assertThat(query.list()).isEmpty();
-        assertThat(query.singleResult()).isNull();
-    }
-
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testQueryByProcessDefinitionKey() {
-        ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery().processDefinitionKey(processInstance1.getProcessDefinitionKey());
-        assertThat(query.count()).isEqualTo(4);
-        assertThat(query.list())
-                .extracting(ExternalWorkerJob::getProcessInstanceId)
-                .containsOnly(processInstance1.getId(), processInstance2.getId());
-
-        query = managementService.createExternalWorkerJobQuery().processDefinitionKey("invalid");
         assertThat(query.count()).isZero();
         assertThat(query.list()).isEmpty();
         assertThat(query.singleResult()).isNull();
@@ -160,24 +121,6 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
         assertThat(query.count()).isZero();
         assertThat(query.list()).isEmpty();
         assertThat(query.singleResult()).isNull();
-    }
-    
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testQueryWithoutScopeId() {
-        ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery().withoutScopeId();
-        assertThat(query.count()).isEqualTo(4);
-        assertThat(query.list())
-                .extracting(ExternalWorkerJob::getProcessInstanceId)
-                .containsOnly(processInstance1.getId(), processInstance2.getId());
-
-        query = managementService.createExternalWorkerJobQuery().withoutScopeId().processInstanceId(processInstance2.getId());
-        assertThat(query.count()).isEqualTo(2);
-        assertThat(query.list())
-                .extracting(ExternalWorkerJob::getProcessInstanceId)
-                .containsOnly(processInstance2.getId());
     }
 
     @Test
@@ -227,33 +170,6 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
         query = managementService.createExternalWorkerJobQuery().handlerType("invalid");
         assertThat(query.count()).isZero();
         assertThat(query.list()).isEmpty();
-    }
-
-    @Test
-    public void testQueryByHandlerTypes() {
-
-        List<String> testTypes = new ArrayList<>();
-        createExternalWorkerJobWithHandlerType("Type1");
-        createExternalWorkerJobWithHandlerType("Type2");
-
-        assertThat(managementService.createExternalWorkerJobQuery().handlerType("Type1").singleResult()).isNotNull();
-        assertThat(managementService.createExternalWorkerJobQuery().handlerType("Type2").singleResult()).isNotNull();
-
-        testTypes.add("TestType");
-        assertThat(managementService.createExternalWorkerJobQuery().handlerTypes(testTypes).singleResult()).isNull();
-
-        testTypes.add("Type1");
-        assertThat(managementService.createExternalWorkerJobQuery().handlerTypes(testTypes).count()).isEqualTo(1);
-        assertThat(managementService.createExternalWorkerJobQuery().handlerTypes(testTypes).singleResult().getJobHandlerType()).isEqualTo("Type1");
-
-        testTypes.add("Type2");
-        assertThat(managementService.createExternalWorkerJobQuery().handlerTypes(testTypes).count()).isEqualTo(2);
-        assertThat(managementService.createExternalWorkerJobQuery().handlerTypes(testTypes).list())
-                .extracting(JobInfo::getJobHandlerType)
-                .containsExactlyInAnyOrder("Type1", "Type2");
-
-        managementService.deleteExternalWorkerJob(managementService.createExternalWorkerJobQuery().handlerType("Type1").singleResult().getId());
-        managementService.deleteExternalWorkerJob(managementService.createExternalWorkerJobQuery().handlerType("Type2").singleResult().getId());
     }
 
     @Test
@@ -467,196 +383,6 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
                 .extracting(ExternalWorkerJob::getId)
                 .containsExactlyInAnyOrder(userAndGroupJob.getId());
     }
-    
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testUnaquireWithJobId() {
-        runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-
-        managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("orderService", Duration.ofMinutes(10))
-                .acquireAndLock(1, "testWorker1");
-
-        managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("customerService", Duration.ofMinutes(10))
-                .acquireAndLock(1, "testWorker2");
-
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery().lockOwner("testWorker1");
-        assertThat(query.count()).isEqualTo(1);
-        assertThat(query.list())
-                .extracting(ExternalWorkerJob::getElementId)
-                .containsExactlyInAnyOrder("externalOrder");
-
-        ExternalWorkerJob job = query.singleResult();
-        managementService.unacquireExternalWorkerJob(job.getId(), "testWorker1");
-        
-        assertThat(query.count()).isEqualTo(0);
-        
-        query = managementService.createExternalWorkerJobQuery().jobId(job.getId());
-        job = query.singleResult();
-        assertThat(job.getLockOwner()).isNull();
-        assertThat(job.getLockExpirationTime()).isNull();
-
-        query = managementService.createExternalWorkerJobQuery().lockOwner("testWorker2");
-        assertThat(query.count()).isEqualTo(1);
-        assertThat(query.list())
-                .extracting(ExternalWorkerJob::getElementId)
-                .containsExactlyInAnyOrder("externalCustomer1");
-
-        final Job worker2Job = query.singleResult();
-        
-        assertThatThrownBy(() -> {
-            managementService.unacquireExternalWorkerJob(worker2Job.getId(), "testWorker1");
-            
-        }).isInstanceOf(FlowableException.class)
-                .hasMessage("ExternalWorkerJobEntity[id=" + worker2Job.getId()
-                        + ", jobHandlerType=external-worker-complete, jobType=externalWorker, elementId=externalCustomer1, correlationId="
-                        + worker2Job.getCorrelationId() + ", processInstanceId=" + worker2Job.getProcessInstanceId()
-                        + ", executionId=" + worker2Job.getExecutionId() + ", processDefinitionId=" + worker2Job.getProcessDefinitionId()
-                        + "] is locked with a different worker id");
-
-        managementService.unacquireExternalWorkerJob(worker2Job.getId(), "testWorker2");
-        
-        assertThat(query.count()).isEqualTo(0);
-        
-        query = managementService.createExternalWorkerJobQuery().jobId(job.getId());
-        job = query.singleResult();
-        assertThat(job.getLockOwner()).isNull();
-        assertThat(job.getLockExpirationTime()).isNull();
-    }
-    
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testUnaquireWithWorkerId() {
-        runtimeService.startProcessInstanceByKey("externalWorkerJobQueryTest");
-
-        ExternalWorkerJob job1 = managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("orderService", Duration.ofMinutes(10))
-                .acquireAndLock(1, "testWorker1").get(0);
-
-        ExternalWorkerJob job2 = managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("customerService", Duration.ofMinutes(10))
-                .acquireAndLock(1, "testWorker1").get(0);
-
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery().lockOwner("testWorker1");
-        assertThat(query.count()).isEqualTo(2);
-
-        managementService.unacquireAllExternalWorkerJobsForWorker("testWorker2");
-        assertThat(query.count()).isEqualTo(2);
-        
-        managementService.unacquireAllExternalWorkerJobsForWorker("testWorker1");
-        assertThat(query.count()).isEqualTo(0);
-        
-        List<String> jobIds = new ArrayList<>();
-        jobIds.add(job1.getId());
-        jobIds.add(job2.getId());
-        query = managementService.createExternalWorkerJobQuery().jobIds(jobIds);
-        assertThat(query.count()).isEqualTo(2);
-        
-        List<ExternalWorkerJob> workerJobs = query.list();
-        for (ExternalWorkerJob externalWorkerJob : workerJobs) {
-            assertThat(externalWorkerJob.getLockOwner()).isNull();
-            assertThat(externalWorkerJob.getLockExpirationTime()).isNull();
-        }
-    }
-    
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/api/mgmt/ExternalWorkerJobQueryTest.bpmn20.xml")
-    public void testUnaquireWithWorkerIdAndTenantId() {
-        ProcessInstance tenant1Instance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("externalWorkerJobQueryTest")
-                .overrideProcessDefinitionTenantId("tenant1")
-                .start();
-        
-        ProcessInstance tenant2Instance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("externalWorkerJobQueryTest")
-                .overrideProcessDefinitionTenantId("tenant2")
-                .start();
-        
-        assertThat(managementService.createExternalWorkerJobQuery()
-                .jobTenantId("tenant1").count()).isEqualTo(2);
-        
-        assertThat(managementService.createExternalWorkerJobQuery()
-                .jobTenantId("tenant2").count()).isEqualTo(2);
-        
-        managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("orderService", Duration.ofMinutes(10))
-                .acquireAndLock(2, "testWorker1");
-
-        managementService.createExternalWorkerJobAcquireBuilder()
-                .topic("customerService", Duration.ofMinutes(10))
-                .acquireAndLock(2, "testWorker2");
-
-        ExternalWorkerJobQuery query = managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker1")
-                .jobTenantId("tenant1");
-        assertThat(query.count()).isEqualTo(1);
-        
-        query = managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker1")
-                .jobTenantId("tenant2");
-        assertThat(query.count()).isEqualTo(1);
-        
-        assertThatThrownBy(() -> {
-            managementService.unacquireAllExternalWorkerJobsForWorker("testWorker2", "tenant1");
-            
-        }).isInstanceOf(FlowableException.class)
-          .hasMessageContaining("provided worker id has external worker jobs from different tenant");
-        
-        ExternalWorkerJobEntity worker1Tenant2Job = (ExternalWorkerJobEntity) managementService.createExternalWorkerJobQuery().lockOwner("testWorker1").jobTenantId("tenant2").singleResult();
-        ExternalWorkerJobEntity worker2Tenant1Job = (ExternalWorkerJobEntity) managementService.createExternalWorkerJobQuery().lockOwner("testWorker2").jobTenantId("tenant1").singleResult();
-
-        processEngineConfiguration.getCommandExecutor().execute(new Command<Void>() {
-
-            @Override
-            public Void execute(CommandContext commandContext) {
-                ExternalWorkerJobEntityManager externalWorkerJobEntityManager = processEngineConfiguration.getJobServiceConfiguration().getExternalWorkerJobEntityManager();
-                worker1Tenant2Job.setTenantId("tenant1");
-                externalWorkerJobEntityManager.update(worker1Tenant2Job);
-                
-                worker2Tenant1Job.setTenantId("tenant2");
-                externalWorkerJobEntityManager.update(worker2Tenant1Job);
-                
-                return null;
-            }
-        });
-        
-        query = managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker1")
-                .jobTenantId("tenant1");
-        assertThat(query.count()).isEqualTo(2);
-        
-        query = managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker2")
-                .jobTenantId("tenant2");
-        assertThat(query.count()).isEqualTo(2);
-        
-        managementService.unacquireAllExternalWorkerJobsForWorker("testWorker2", "tenant2");
-        assertThat(managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker2").count()).isEqualTo(0);
-        
-        managementService.unacquireAllExternalWorkerJobsForWorker("testWorker1", "tenant1");
-        
-        managementService.unacquireAllExternalWorkerJobsForWorker("testWorker1");
-        assertThat(managementService.createExternalWorkerJobQuery()
-                .lockOwner("testWorker1").count()).isEqualTo(0);
-        
-        query = managementService.createExternalWorkerJobQuery().processInstanceId(tenant1Instance.getId());
-        assertThat(query.count()).isEqualTo(2);
-        
-        for (ExternalWorkerJob externalWorkerJob : query.list()) {
-            assertThat(externalWorkerJob.getLockOwner()).isNull();
-            assertThat(externalWorkerJob.getLockExpirationTime()).isNull();
-        }
-        
-        query = managementService.createExternalWorkerJobQuery().processInstanceId(tenant2Instance.getId());
-        assertThat(query.count()).isEqualTo(2);
-        
-        for (ExternalWorkerJob externalWorkerJob : query.list()) {
-            assertThat(externalWorkerJob.getLockOwner()).isNull();
-            assertThat(externalWorkerJob.getLockExpirationTime()).isNull();
-        }
-    }
 
     protected void addUserIdentityLinkToJob(Job job, String userId) {
         managementService.executeCommand(commandContext -> {
@@ -675,29 +401,5 @@ public class ExternalWorkerJobQueryTest extends PluggableFlowableTestCase {
         });
     }
 
-    private void createExternalWorkerJobWithHandlerType(String handlerType) {
-        CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutor();
-        commandExecutor.execute(new Command<Void>() {
-
-            @Override
-            public Void execute(CommandContext commandContext) {
-                JobService jobService = CommandContextUtil.getJobService(commandContext);
-                ExternalWorkerJobEntity jobEntity = jobService.createExternalWorkerJob();
-                jobEntity.setJobType(Job.JOB_TYPE_EXTERNAL_WORKER);
-                //jobEntity.setLockOwner(UUID.randomUUID().toString());
-                jobEntity.setRetries(0);
-                jobEntity.setJobHandlerType(handlerType);
-
-                StringWriter stringWriter = new StringWriter();
-                NullPointerException exception = new NullPointerException();
-                exception.printStackTrace(new PrintWriter(stringWriter));
-                jobEntity.setExceptionStacktrace(stringWriter.toString());
-
-                jobService.insertExternalWorkerJob(jobEntity);
-                assertThat(jobEntity.getId()).isNotNull();
-                return null;
-            }
-        });
-    }
 
 }

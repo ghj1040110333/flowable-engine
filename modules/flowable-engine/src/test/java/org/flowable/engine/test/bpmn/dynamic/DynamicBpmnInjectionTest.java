@@ -18,17 +18,13 @@ import java.util.List;
 
 import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.bpmn.model.FlowElement;
-import org.flowable.bpmn.model.FlowElementsContainer;
 import org.flowable.bpmn.model.GraphicInfo;
-import org.flowable.bpmn.model.Process;
 import org.flowable.bpmn.model.SubProcess;
-import org.flowable.bpmn.model.UserTask;
 import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.engine.history.HistoricActivityInstance;
 import org.flowable.engine.history.HistoricProcessInstance;
 import org.flowable.engine.impl.dynamic.DynamicEmbeddedSubProcessBuilder;
 import org.flowable.engine.impl.dynamic.DynamicUserTaskBuilder;
-import org.flowable.engine.impl.dynamic.DynamicUserTaskCallback;
 import org.flowable.engine.impl.persistence.CountingExecutionEntity;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
@@ -48,24 +44,11 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deployOneTaskTestProcess();
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         DynamicUserTaskBuilder taskBuilder = new DynamicUserTaskBuilder();
         taskBuilder.id("custom_task")
             .name("My injected task")
-            .assignee("kermit")
-            .dynamicUserTaskCallback(new DynamicUserTaskCallback() {
-                @Override
-                public void handleCreatedDynamicUserTask(UserTask userTask, SubProcess newSubProcess, FlowElementsContainer parentContainer, Process process) {
-                    userTask.setOwner("missPiggy");
-                }
-            });
+            .assignee("kermit");
         dynamicBpmnService.injectUserTaskInProcessInstance(processInstance.getId(), taskBuilder);
-        
-        Task injectedTask = taskService.createTaskQuery().taskDefinitionKey(taskBuilder.getDynamicTaskId()).processInstanceId(processInstance.getId()).singleResult();
-        assertThat(injectedTask).isNotNull();
-        assertThat(injectedTask.getOwner()).isEqualTo("missPiggy");
 
         List<Task> tasks = taskService.createTaskQuery().processInstanceId(processInstance.getId()).list();
         assertThat(tasks).hasSize(2);
@@ -84,9 +67,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deployOneTaskTestProcess();
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         Task task = taskService.createTaskQuery().singleResult();
 
         DynamicUserTaskBuilder taskBuilder = new DynamicUserTaskBuilder();
@@ -110,7 +90,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         for (Task t : tasks) {
             taskService.complete(t.getId());
         }
-        
         assertProcessEnded(processInstance.getId());
     }
     
@@ -118,9 +97,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
     @org.flowable.engine.test.Deployment
     public void testOneTaskDi() {
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         Task task = taskService.createTaskQuery().singleResult();
 
         DynamicUserTaskBuilder taskBuilder = new DynamicUserTaskBuilder();
@@ -185,7 +161,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         for (Task t : tasks) {
             taskService.complete(t.getId());
         }
-        
         assertProcessEnded(processInstance.getId());  
     }
 
@@ -194,9 +169,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deployOneTaskTestProcess();
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         Task task = taskService.createTaskQuery().singleResult();
 
         DynamicUserTaskBuilder taskBuilder = new DynamicUserTaskBuilder();
@@ -237,9 +209,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deploymentIdsForAutoCleanup.add(deployment.getId());
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         Task task = taskService.createTaskQuery().singleResult();
 
         ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery()
@@ -281,9 +250,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deploymentIdsForAutoCleanup.add(deployment.getId());
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testProcess01");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         List<Task> tasks = taskService.createTaskQuery().processInstanceId(processInstance.getId()).orderByTaskName().asc().list();
         assertThat(tasks)
                 .extracting(Task::getName)
@@ -334,9 +300,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deployOneTaskTestProcess();
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         Task task = taskService.createTaskQuery().singleResult();
 
         DynamicUserTaskBuilder taskBuilder = new DynamicUserTaskBuilder();
@@ -393,9 +356,6 @@ public class DynamicBpmnInjectionTest extends PluggableFlowableTestCase {
         deploymentIdsForAutoCleanup.add(deployment.getId()); // For auto-cleanup
 
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testProcess01");
-        
-        waitForHistoryJobExecutorToProcessAllJobs(10000, 200);
-        
         List<Task> tasks = taskService.createTaskQuery().processInstanceId(processInstance.getId()).orderByTaskName().asc().list();
         assertThat(tasks).hasSize(4);
 

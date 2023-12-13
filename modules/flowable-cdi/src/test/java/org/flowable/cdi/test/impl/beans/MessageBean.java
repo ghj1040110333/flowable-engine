@@ -14,8 +14,8 @@ package org.flowable.cdi.test.impl.beans;
 
 import java.io.Serializable;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Named;
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Named;
 
 /**
  * @author Daniel Meyer

@@ -13,7 +13,6 @@
 package org.flowable.engine.test.bpmn.event.error;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.HashMap;
@@ -230,28 +229,6 @@ public class ErrorEventSubProcessTest extends PluggableFlowableTestCase {
                             tuple("userTask", "taskAfterBoundary")
                     );
         }
-    }
-
-    @Test
-    @Deployment
-    public void testCatchErrorWithInputParametersThrownByExpressionOnServiceTask() {
-        ProcessInstance processInstance = runtimeService.createProcessInstanceBuilder()
-                .processDefinitionKey("errorProcess")
-                .transientVariable("bpmnErrorBean", new BpmnErrorBean())
-                .start();
-
-        Task task = taskService.createTaskQuery().singleResult();
-        assertThat(task).isNotNull();
-        assertThat(task.getName()).isEqualTo("Escalated Task");
-
-        assertThat(runtimeService.getVariables(processInstance.getId()))
-                .containsOnly(
-                        entry("handledErrorCodeVar", "subProcessError"),
-                        entry("handledErrorCodeVarWithExpression", "subProcessError-testing"),
-                        entry("handledErrorMessage", "Sub process error message"),
-                        entry("handledCustomParameter", "Custom value"),
-                        entry("fromTransientHandledVar", "Custom value")
-                );
     }
 
     private void assertThatErrorHasBeenCaught(String procId) {

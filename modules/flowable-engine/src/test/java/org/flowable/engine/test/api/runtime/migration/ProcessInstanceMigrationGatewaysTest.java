@@ -1412,8 +1412,7 @@ public class ProcessInstanceMigrationGatewaysTest extends AbstractProcessInstanc
             processInstanceMigrationBuilder.migrate(processInstance.getId());
         })
                 .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("No outgoing sequence flow of element 'gwFork' could be selected for continuing the process for Execution[ id '")
-                .hasMessageContainingAll(" - definition 'startInclusiveGwProcess:1:", " - activity 'gwFork'");
+                .hasMessage("No outgoing sequence flow of element 'gwFork' could be selected for continuing the process");
     }
 
     @Test

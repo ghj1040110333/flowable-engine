@@ -58,7 +58,7 @@ public class ThrowCustomExceptionFutureDelegate implements FlowableFutureJavaDel
             RuntimeException exception = null;
             try {
                 Class<?> clazz = Class.forName(exceptionClassName);
-                exception = (RuntimeException) clazz.getConstructor().newInstance();
+                exception = (RuntimeException) clazz.newInstance();
 
             } catch (Exception e) {
                 throw new FlowableException("Class not found", e);

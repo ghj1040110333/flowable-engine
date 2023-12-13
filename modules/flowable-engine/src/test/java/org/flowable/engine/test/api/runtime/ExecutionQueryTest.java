@@ -1581,11 +1581,11 @@ public class ExecutionQueryTest extends PluggableFlowableTestCase {
 
         executions = runtimeService.createExecutionQuery().processInstanceId(processInstance1.getId()).or().variableNotExists("mixed").endOr().or()
                 .variableValueEquals("upper", "ABCDEFG").endOr().list();
-        assertThat(executions).isEmpty();
+        assertThat(executions).hasSize(2);
 
         executions = runtimeService.createExecutionQuery().processInstanceId(processInstance1.getId()).or().variableExists("mixed").endOr().or()
                 .variableValueEquals("upper", "ABCDEFG").endOr().list();
-        assertThat(executions).hasSize(1);
+        assertThat(executions).isEmpty();
     }
 
     @Test

@@ -12,15 +12,17 @@
  */
 package org.flowable.http.bpmn;
 
+import org.apache.http.client.HttpClient;
 import org.flowable.common.engine.api.variable.VariableContainer;
-import org.flowable.http.common.api.HttpRequest;
-import org.flowable.http.common.api.client.FlowableHttpClient;
-import org.flowable.http.common.api.delegate.HttpRequestHandler;
+import org.flowable.http.HttpRequest;
+import org.flowable.http.delegate.HttpRequestHandler;
 
 public class SimpleHttpRequestHandler implements HttpRequestHandler {
 
+    private static final long serialVersionUID = 1L;
+
     @Override
-    public void handleHttpRequest(VariableContainer execution, HttpRequest httpRequest, FlowableHttpClient client) {
+    public void handleHttpRequest(VariableContainer execution, HttpRequest httpRequest, HttpClient client) {
         httpRequest.setUrl("http://localhost:9798/test");
         httpRequest.setMethod("GET");
     }

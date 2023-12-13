@@ -153,7 +153,9 @@ public class OptimisticLockingExceptionTest extends PluggableFlowableTestCase {
         public void closing(CommandContext commandContext) {
             try {
                 TEST_BARRIER_BEFORE_CLOSE.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
         }

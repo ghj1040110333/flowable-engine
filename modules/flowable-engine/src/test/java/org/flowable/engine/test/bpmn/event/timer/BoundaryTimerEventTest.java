@@ -116,57 +116,6 @@ public class BoundaryTimerEventTest extends PluggableFlowableTestCase {
 
     @Test
     @Deployment
-    public void testTimerOnSyncMultiInstanceActivity() {
-
-        // Timer doesn't fire
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("myProcess");
-
-        List<Task> tasks = taskService.createTaskQuery().processInstanceId(processInstance.getId()).list();
-        assertThat(tasks).hasSize(3);
-
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(1);
-
-        taskService.complete(tasks.get(0).getId());
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(1);
-
-        taskService.complete(tasks.get(1).getId());
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(1);
-
-        taskService.complete(tasks.get(2).getId());
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(0);
-
-
-        // Timer does fire
-        processInstance = runtimeService.startProcessInstanceByKey("myProcess");
-        Job job = managementService.moveTimerToExecutableJob(managementService.createTimerJobQuery().singleResult().getId());
-        managementService.executeJob(job.getId());
-
-        assertThat(taskService.createTaskQuery().processInstanceId(processInstance.getId()).list()).hasSize(0);
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(0);
-    }
-
-    @Test
-    @Deployment
-    public void testTimerOnAsyncMultiInstanceActivity() {
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testTimerOnAsyncMultiInstanceActivity");
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(1);
-
-        // async-continuation into the async multi-instance activity
-        for (Job job : managementService.createJobQuery().list()) {
-            managementService.executeJob(job.getId());
-        }
-
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(1);
-
-        Job job = managementService.moveTimerToExecutableJob(managementService.createTimerJobQuery().singleResult().getId());
-        managementService.executeJob(job.getId());
-
-        assertThat(taskService.createTaskQuery().processInstanceId(processInstance.getId()).list()).hasSize(0);
-        assertThat(managementService.createTimerJobQuery().count()).isEqualTo(0);
-    }
-    
-    @Test
-    @Deployment
     public void testExpressionOnTimer() {
         // Set the clock fixed
         Date startTime = new Date();
@@ -188,7 +137,7 @@ public class BoundaryTimerEventTest extends PluggableFlowableTestCase {
         assertThat(jobQuery.count()).isZero();
 
         // start execution listener is not executed
-        assertThat(listenerExecutedStartEvent).isTrue();
+        assertThat(listenerExecutedStartEvent).isFalse();
         assertThat(listenerExecutedEndEvent).isTrue();
 
         // which means the process has ended
@@ -222,7 +171,7 @@ public class BoundaryTimerEventTest extends PluggableFlowableTestCase {
         assertThat(jobQuery.count()).isZero();
 
         // start execution listener is not executed
-        assertThat(listenerExecutedStartEvent).isTrue();
+        assertThat(listenerExecutedStartEvent).isFalse();
         assertThat(listenerExecutedEndEvent).isTrue();
 
         // which means the process has ended
@@ -244,8 +193,7 @@ public class BoundaryTimerEventTest extends PluggableFlowableTestCase {
         assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("testNullExpressionOnTimer", variables))
                 .as("Expected wrong due date exception")
                 .isInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("Due date could not be determined for timer job null for Execution[")
-                .hasMessageContainingAll(" - definition 'testNullExpressionOnTimer:1:", " - activity 'boundaryTimer'");
+                .hasMessage("Due date could not be determined for timer job null");
     }
     
     @Test
@@ -279,8 +227,7 @@ public class BoundaryTimerEventTest extends PluggableFlowableTestCase {
         assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("test-timers", variables).getProcessInstanceId())
                 .as("Expected wrong due date exception")
                 .isInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("Due date could not be determined for timer job 0 0 0 1 1 ? 2000 for Execution[")
-                .hasMessageContainingAll(" - definition 'test-timers:1:", " - activity 'remind-reviewer-event'");
+                .hasMessage("Due date could not be determined for timer job 0 0 0 1 1 ? 2000");
     }
 
     @Test

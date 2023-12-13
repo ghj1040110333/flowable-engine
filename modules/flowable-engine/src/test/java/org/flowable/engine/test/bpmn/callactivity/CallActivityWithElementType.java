@@ -88,8 +88,7 @@ public class CallActivityWithElementType extends PluggableFlowableTestCase {
                         Collections.singletonMap("subProcessDefinitionKey", "simpleSubProcess")))
                 .as("Flowable exception expected")
                 .isInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("Unrecognized calledElementType [unrecognizedElementType] in Execution[")
-                .hasMessageContainingAll(" - definition 'callSimpleSubProcess:1:", " - activity 'callSubProcess'");
+                .hasMessage("Unrecognized calledElementType [unrecognizedElementType]");
     }
 
     protected void assertThatSubProcessIsCalled(String deploymentId, Map<String, Object> variables) {

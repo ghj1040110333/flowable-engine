@@ -14,7 +14,7 @@ package org.flowable.cdi.test.impl.beans;
 
 import java.io.Serializable;
 
-import jakarta.inject.Named;
+import javax.inject.Named;
 
 import org.flowable.cdi.annotation.BusinessProcessScoped;
 

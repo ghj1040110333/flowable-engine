@@ -16,8 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.HashMap;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import javax.inject.Inject;
+import javax.inject.Named;
 
 import org.flowable.cdi.BusinessProcess;
 import org.flowable.cdi.test.CdiFlowableTestCase;

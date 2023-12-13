@@ -21,19 +21,15 @@ import static org.assertj.core.api.Assertions.tuple;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
-import jakarta.activation.DataHandler;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeMultipart;
+import javax.activation.DataHandler;
+import javax.mail.MessagingException;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.impl.history.HistoryLevel;
@@ -41,12 +37,7 @@ import org.flowable.common.engine.impl.util.CollectionUtil;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.test.Deployment;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.subethamail.wiser.WiserMessage;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Joram Barrez
@@ -63,54 +54,10 @@ public class EmailServiceTaskTest extends EmailTestCase {
         assertThat(messages).hasSize(1);
 
         WiserMessage message = messages.get(0);
-        assertEmailSend(message, false, "Hello Kermit!", "This a text only e-mail.", "flowable@localhost", Collections.singletonList("kermit@activiti.org"),
-                null);
-        assertThat(message.getMimeMessage().getContentType()).isEqualTo("text/plain; charset=us-ascii");
+        assertEmailSend(message, false, "Hello Kermit!", "This a text only e-mail.", "flowable@localhost", Collections.singletonList("kermit@activiti.org"), null);
         assertProcessEnded(procId);
     }
-
-    @ParameterizedTest
-    @MethodSource(value = "recipientsTest")
-    @Deployment
-    public void testDynamicRecipients(Object recipients) throws MessagingException {
-        runtimeService.createProcessInstanceBuilder().processDefinitionKey("dynamicRecipients").variable("recipients", recipients).start();
-        List<WiserMessage> messages = wiser.getMessages();
-        assertThat(messages).hasSize(6);
-        WiserMessage message = messages.get(0);
-        MimeMessage mimeMessage = message.getMimeMessage();
-
-        assertThat(mimeMessage.getHeader("To", null)).isEqualTo("flowable@localhost, misspiggy@flowable.org");
-        assertThat(mimeMessage.getHeader("Cc", null)).isEqualTo("flowable@localhost, misspiggy@flowable.org");
-    }
-
-    private static Stream<Arguments> recipientsTest() {
-        return Stream.of(
-                Arguments.of("flowable@localhost, misspiggy@flowable.org"),
-                Arguments.of(Arrays.asList("flowable@localhost", "misspiggy@flowable.org")),
-                Arguments.of(new ObjectMapper().createArrayNode().add("flowable@localhost").add("misspiggy@flowable.org"))
-        );
-    }
-
-    @Test
-    @Deployment(resources = "org/flowable/engine/test/bpmn/mail/EmailServiceTaskTest.testSimpleTextMail.bpmn20.xml")
-    public void testSimpleTextMailCharset() throws Exception {
-        Charset originalCharset = processEngineConfiguration.getMailServerDefaultCharset();
-
-        try {
-            processEngineConfiguration.setMailServerDefaultCharset(StandardCharsets.UTF_8);
-            reinitilizeMailClients();
-            String procId = runtimeService.startProcessInstanceByKey("simpleTextOnly").getId();
-
-            List<WiserMessage> messages = wiser.getMessages();
-            assertThat(messages).hasSize(1);
-
-            WiserMessage message = messages.get(0);
-            assertThat(message.getMimeMessage().getContentType()).isEqualTo("text/plain; charset=UTF-8");
-        } finally {
-            processEngineConfiguration.setMailServerDefaultCharset(originalCharset);
-        }
-    }
-
+    
     @Test
     @Deployment
     public void testSkipExpression() throws Exception {
@@ -182,7 +129,6 @@ public class EmailServiceTaskTest extends EmailTestCase {
     public void testSimpleTextMailWhenMultiTenantWithForceTo() throws Exception {
         String tenantId = "forceToEmailTenant";
         addMailServer(tenantId, "flowable@myTenant.com", "no-reply@myTenant.com");
-        reinitilizeMailClients();
 
         String procId = runtimeService.startProcessInstanceByKeyAndTenantId("simpleTextOnly", tenantId).getId();
 
@@ -225,7 +171,6 @@ public class EmailServiceTaskTest extends EmailTestCase {
     @Test
     public void testSimpleTextMailForNonExistentTenantWithForceTo() throws Exception {
         processEngineConfiguration.setMailServerForceTo("no-reply@flowable.org");
-        reinitilizeMailClients();
         String tenantId = "nonExistentTenant";
 
         repositoryService.createDeployment()
@@ -260,7 +205,6 @@ public class EmailServiceTaskTest extends EmailTestCase {
     @Deployment(resources = "org/flowable/engine/test/bpmn/mail/EmailServiceTaskTest.testSimpleTextMailMultipleRecipients.bpmn20.xml")
     public void testSimpleTextMailMultipleRecipientsAndForceTo() {
         processEngineConfiguration.setMailServerForceTo("no-reply@flowable.org, no-reply2@flowable.org");
-        reinitilizeMailClients();
         runtimeService.startProcessInstanceByKey("simpleTextOnlyMultipleRecipients");
 
         List<WiserMessage> messages = wiser.getMessages();
@@ -299,54 +243,6 @@ public class EmailServiceTaskTest extends EmailTestCase {
 
     @Test
     @Deployment
-    public void testOnlyBccAddress() throws Exception {
-        runtimeService.startProcessInstanceByKey("onlyBccAddress");
-
-        List<WiserMessage> messages = wiser.getMessages();
-        assertEmailSend(messages.get(0), false, "Hello world", "This is the content", "flowable@localhost", Collections.emptyList(),
-            Collections.emptyList());
-
-        assertThat(messages)
-            .extracting(WiserMessage::getEnvelopeSender, WiserMessage::getEnvelopeReceiver)
-            .containsExactlyInAnyOrder(
-                tuple("flowable@localhost", "mispiggy@activiti.org")
-            );
-    }
-
-    @Test
-    @Deployment
-    public void testOnlyCcAddress() throws Exception {
-        runtimeService.startProcessInstanceByKey("onlyCcAddress");
-
-        List<WiserMessage> messages = wiser.getMessages();
-        assertEmailSend(messages.get(0), false, "Hello world", "This is the content", "flowable@localhost", Collections.emptyList(),
-                Collections.singletonList("mispiggy@activiti.org"));
-
-        assertThat(messages)
-                .extracting(WiserMessage::getEnvelopeSender, WiserMessage::getEnvelopeReceiver)
-                .containsExactlyInAnyOrder(
-                        tuple("flowable@localhost", "mispiggy@activiti.org")
-                );
-    }
-
-    @Test
-    @Deployment
-    public void testOnlyToAddress() throws Exception {
-        runtimeService.startProcessInstanceByKey("onlyToAddress");
-
-        List<WiserMessage> messages = wiser.getMessages();
-        assertEmailSend(messages.get(0), false, "Hello world", "This is the content", "flowable@localhost", Collections.singletonList("mispiggy@activiti.org"),
-                Collections.emptyList());
-
-        assertThat(messages)
-                .extracting(WiserMessage::getEnvelopeSender, WiserMessage::getEnvelopeReceiver)
-                .containsExactlyInAnyOrder(
-                        tuple("flowable@localhost", "mispiggy@activiti.org")
-                );
-    }
-
-    @Test
-    @Deployment
     public void testCcAndBcc() throws Exception {
         runtimeService.startProcessInstanceByKey("ccAndBcc");
 
@@ -367,7 +263,6 @@ public class EmailServiceTaskTest extends EmailTestCase {
     @Deployment(resources = "org/flowable/engine/test/bpmn/mail/EmailServiceTaskTest.testCcAndBcc.bpmn20.xml")
     public void testCcAndBccWithForceTo() throws Exception {
         processEngineConfiguration.setMailServerForceTo("no-reply@flowable");
-        reinitilizeMailClients();
         runtimeService.startProcessInstanceByKey("ccAndBcc");
 
         List<WiserMessage> messages = wiser.getMessages();
@@ -559,21 +454,19 @@ public class EmailServiceTaskTest extends EmailTestCase {
 
     @Test
     @Deployment
-    public void testMissingAnyRecipientAddress() {
-        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("missingAnyRecipientAddress"))
+    public void testMissingToAddress() {
+        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("missingToAddress"))
             .isInstanceOf(FlowableException.class)
-            .hasMessageStartingWith("No recipient could be found for sending email for Execution[")
-            .hasMessageContainingAll(" - definition 'missingAnyRecipientAddress:1:", " - activity 'sendMail'");
+            .hasMessage("No recipient could be found for sending email");
     }
 
     @Test
-    @Deployment(resources = "org/flowable/engine/test/bpmn/mail/EmailServiceTaskTest.testMissingAnyRecipientAddress.bpmn20.xml")
-    public void testMissingAnyRecipientAddressWithForceTo() {
+    @Deployment(resources = "org/flowable/engine/test/bpmn/mail/EmailServiceTaskTest.testMissingToAddress.bpmn20.xml")
+    public void testMissingToAddressWithForceTo() {
         processEngineConfiguration.setMailServerForceTo("no-reply@flowable.org");
-        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("missingAnyRecipientAddress"))
+        assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("missingToAddress"))
             .isInstanceOf(FlowableException.class)
-            .hasMessageStartingWith("No recipient could be found for sending email for Execution[")
-            .hasMessageContainingAll(" - definition 'missingAnyRecipientAddress:1:", " - activity 'sendMail'");
+            .hasMessage("No recipient could be found for sending email");
     }
 
     // Helper

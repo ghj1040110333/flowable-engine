@@ -165,7 +165,9 @@ public class DuplicateVariableInsertTest extends PluggableFlowableTestCase {
         public Void execute(CommandContext commandContext) {
             try {
                 startBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
 
@@ -173,7 +175,9 @@ public class DuplicateVariableInsertTest extends PluggableFlowableTestCase {
 
             try {
                 endBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
             return null;
@@ -202,7 +206,9 @@ public class DuplicateVariableInsertTest extends PluggableFlowableTestCase {
         public Void execute(CommandContext commandContext) {
             try {
                 startBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
 
@@ -210,7 +216,9 @@ public class DuplicateVariableInsertTest extends PluggableFlowableTestCase {
 
             try {
                 endBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
             return null;

@@ -12,7 +12,6 @@
  */
 package org.flowable.examples.runtime;
 
-import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
@@ -91,11 +90,6 @@ public class WatchDogAgendaFactory implements FlowableEngineAgendaFactory {
         }
 
         @Override
-        public void planTakeOutgoingSequenceFlowsSynchronousOperation(ExecutionEntity execution, boolean evaluateConditions) {
-            agenda.planTakeOutgoingSequenceFlowsSynchronousOperation(execution, evaluateConditions);
-        }
-
-        @Override
         public void planEndExecutionOperation(ExecutionEntity execution) {
             agenda.planEndExecutionOperation(execution);
         }
@@ -126,13 +120,8 @@ public class WatchDogAgendaFactory implements FlowableEngineAgendaFactory {
         }
 
         @Override
-        public void planEvaluateVariableListenerEventsOperation(String processDefinitionId, String processInstanceId) {
-            agenda.planEvaluateVariableListenerEventsOperation(processDefinitionId, processInstanceId);
-        }
-
-        @Override
-        public void planExecuteInactiveBehaviorsOperation(Collection<ExecutionEntity> executions) {
-            agenda.planExecuteInactiveBehaviorsOperation(executions);
+        public void planExecuteInactiveBehaviorsOperation() {
+            agenda.planExecuteInactiveBehaviorsOperation();
         }
 
         private WatchDogAgenda(FlowableEngineAgenda agenda) {

@@ -211,7 +211,8 @@ public class AttachmentEventsTest extends PluggableFlowableTestCase {
                 listener.clearEventsReceived();
 
                 // Delete task and historic task
-                taskService.deleteTask(task.getId(), true);
+                taskService.deleteTask(task.getId());
+                historyService.deleteHistoricTaskInstance(task.getId());
 
                 assertThat(listener.getEventsReceived()).hasSize(1);
                 FlowableEngineEntityEvent event = (FlowableEngineEntityEvent) listener.getEventsReceived().get(0);

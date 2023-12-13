@@ -24,7 +24,6 @@ import static org.flowable.engine.impl.test.HistoryTestHelper.isHistoryLevelAtLe
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -33,7 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.ibatis.exceptions.PersistenceException;
@@ -81,7 +79,6 @@ import org.junit.jupiter.api.Test;
  * @author Frederik Heremans
  * @author Joram Barrez
  * @author Falko Menge
- * @author Christopher Welsch
  */
 public class TaskServiceTest extends PluggableFlowableTestCase {
 
@@ -314,35 +311,6 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         // Finally, delete task
         taskService.deleteTask(task.getId(), true);
-    }
-
-    @Test
-    public void testBulkUpdateTaskAssignee() {
-        List<Task> taskList = new ArrayList<>();
-
-        taskList.add(taskService.createTaskBuilder().create());
-        taskList.add(taskService.createTaskBuilder().create());
-        taskList.add(taskService.createTaskBuilder().create());
-        taskList.add(taskService.createTaskBuilder().create());
-
-        taskList.forEach(task -> assertThat(task.getAssignee()).isNull());
-
-        taskList.forEach(task -> task.setAssignee("johnDoe"));
-
-        taskService.bulkSaveTasks(taskList);
-        List<String> taskIdList = taskList.stream().map(Task::getId).collect(Collectors.toList());
-
-        //Fetch again to ensure updated tasks
-        taskList = taskService.createTaskQuery().taskIds(taskIdList).list();
-        taskList.forEach(task -> assertThat(task.getAssignee()).isEqualTo("johnDoe"));
-
-        taskService.deleteTasks(taskIdList, true);
-    }
-
-    @Test
-    public void testInvalidBulkUpdateTaskAssignee() {
-        assertThatThrownBy(() -> taskService.bulkSaveTasks(null))
-                .isExactlyInstanceOf(FlowableIllegalArgumentException.class);
     }
 
     @Test
@@ -876,10 +844,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
         assertThat(task).isNull();
 
-        if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
-            HistoricTaskInstance historicTaskInstance = historyService.createHistoricTaskInstanceQuery().taskId(taskId).singleResult();
-            assertThat(historicTaskInstance).isNull();
-        }
+        managementService.executeCommand(commandContext -> {
+            processEngineConfiguration.getTaskServiceConfiguration().getHistoricTaskService().deleteHistoricTaskLogEntriesForTaskId(taskId);
+            return null;
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -899,10 +867,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
         assertThat(task).isNull();
 
-        if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
-            HistoricTaskInstance historicTaskInstance = historyService.createHistoricTaskInstanceQuery().taskId(taskId).singleResult();
-            assertThat(historicTaskInstance).isNull();
-        }
+        managementService.executeCommand(commandContext -> {
+            processEngineConfiguration.getTaskServiceConfiguration().getHistoricTaskService().deleteHistoricTaskLogEntriesForTaskId(taskId);
+            return null;
+        });
     }
 
     @Test
@@ -967,8 +935,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskParams.put("${execution.myParam}", "myValue");
         assertThatThrownBy(() -> taskService.complete(task.getId(), taskParams))
                 .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("Error while evaluating expression: ${execution.myParam} with Execution[")
-                .hasMessageContainingAll(" - definition 'twoTasksProcess:1:", " - activity 'firstTask'");
+                .hasMessage("Error while evaluating expression: ${execution.myParam}");
     }
 
     @Test
@@ -1985,6 +1952,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         String taskId = task.getId();
         taskService.resolveTask(taskId, null);
 
+        if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
+            historyService.deleteHistoricTaskInstance(taskId);
+        }
+
         // Fetch the task again
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
         assertThat(task.getDelegationState()).isEqualTo(DelegationState.RESOLVED);
@@ -2000,6 +1971,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         String taskId = task.getId();
         taskService.resolveTask(taskId, null, Collections.EMPTY_MAP);
+
+        if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
+            historyService.deleteHistoricTaskInstance(taskId);
+        }
 
         // Fetch the task again
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
@@ -2017,6 +1992,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         String taskId = task.getId();
         taskService.resolveTask(taskId, Collections.EMPTY_MAP);
+
+        if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
+            historyService.deleteHistoricTaskInstance(taskId);
+        }
 
         // Fetch the task again
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
@@ -2057,33 +2036,31 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         runtimeService.startProcessInstanceByKey("oneTaskProcess");
         org.flowable.task.api.Task task = taskService.createTaskQuery().singleResult();
         assertThat(task).isNotNull();
-        String taskErrorString = "Task[id=" + task.getId() + ", key=theTask, name=my task, processInstanceId=" + task.getProcessInstanceId() + ", executionId="
-                + task.getExecutionId() + ", processDefinitionId=" + task.getProcessDefinitionId() + "]";
 
         assertThatThrownBy(() -> taskService.deleteTask(task.getId()))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
 
         assertThatThrownBy(() -> taskService.deleteTask(task.getId(), true))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
 
         assertThatThrownBy(() -> taskService.deleteTask(task.getId(), "test"))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
 
         String idLists[] = { task.getId() };
         assertThatThrownBy(() -> taskService.deleteTasks(Arrays.asList(idLists)))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
 
         assertThatThrownBy(() -> taskService.deleteTasks(Arrays.asList(idLists), true))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
 
         assertThatThrownBy(() -> taskService.deleteTasks(Arrays.asList(idLists), "test"))
                 .isInstanceOf(FlowableException.class)
-                .hasMessage("The " + taskErrorString + " cannot be deleted because is part of a running process");
+                .hasMessage("The task cannot be deleted because is part of a running process");
     }
 
     @Test

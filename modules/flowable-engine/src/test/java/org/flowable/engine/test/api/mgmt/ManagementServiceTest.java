@@ -17,21 +17,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.FlowableIllegalArgumentException;
 import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.common.engine.api.management.TableMetaData;
+import org.flowable.common.engine.impl.interceptor.CommandContext;
 import org.flowable.common.engine.impl.interceptor.CommandExecutor;
 import org.flowable.common.engine.impl.lock.LockManager;
-import org.flowable.common.engine.impl.lock.LockManagerImpl;
 import org.flowable.common.engine.impl.persistence.entity.PropertyEntity;
 import org.flowable.common.engine.impl.persistence.entity.PropertyEntityManager;
 import org.flowable.engine.impl.ProcessEngineImpl;
@@ -42,7 +38,6 @@ import org.flowable.engine.test.Deployment;
 import org.flowable.eventsubscription.service.impl.persistence.entity.EventSubscriptionEntity;
 import org.flowable.job.api.Job;
 import org.flowable.job.api.JobNotFoundException;
-import org.flowable.job.service.JobHandler;
 import org.flowable.job.service.JobService;
 import org.flowable.job.service.TimerJobService;
 import org.flowable.job.service.impl.cmd.AcquireJobsCmd;
@@ -91,63 +86,6 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
     }
 
     @Test
-    public void testExecuteJobThrowsNonFlowableException() {
-        JobHandler jobHandler = new ExceptionThrowingJobHandler(() -> new RuntimeException("Test exception"));
-        try {
-            processEngineConfiguration.addJobHandler(jobHandler);
-            String jobId = managementService.executeCommand(commandContext -> {
-                JobService jobService = CommandContextUtil.getJobService(commandContext);
-                JobEntity job = jobService.createJob();
-                job.setJobType(JobEntity.JOB_TYPE_MESSAGE);
-                job.setJobHandlerType(jobHandler.getType());
-                job.setRetries(3);
-                jobService.insertJob(job);
-                return job.getId();
-            });
-            assertThatThrownBy(() -> managementService.executeJob(jobId))
-                    .isExactlyInstanceOf(FlowableException.class)
-                    .hasMessage("Job " + jobId + " failed")
-                    .cause()
-                    .isExactlyInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Test exception")
-                    .hasNoCause();
-        } finally {
-            Job job = managementService.createTimerJobQuery().singleResult();
-            if (job != null) {
-                managementService.deleteTimerJob(job.getId());
-            }
-            processEngineConfiguration.removeJobHandler(jobHandler.getType());
-        }
-    }
-
-    @Test
-    public void testExecuteJobThrowsFlowableException() {
-        JobHandler jobHandler = new ExceptionThrowingJobHandler(() -> new FlowableIllegalArgumentException("Test exception"));
-        try {
-            processEngineConfiguration.addJobHandler(jobHandler);
-            String jobId = managementService.executeCommand(commandContext -> {
-                JobService jobService = CommandContextUtil.getJobService(commandContext);
-                JobEntity job = jobService.createJob();
-                job.setJobType(JobEntity.JOB_TYPE_MESSAGE);
-                job.setJobHandlerType(jobHandler.getType());
-                job.setRetries(3);
-                jobService.insertJob(job);
-                return job.getId();
-            });
-            assertThatThrownBy(() -> managementService.executeJob(jobId))
-                    .isInstanceOf(FlowableIllegalArgumentException.class)
-                    .hasMessageContaining("Test exception")
-                    .hasNoCause();
-        } finally {
-            Job job = managementService.createTimerJobQuery().singleResult();
-            if (job != null) {
-                managementService.deleteTimerJob(job.getId());
-            }
-            processEngineConfiguration.removeJobHandler(jobHandler.getType());
-        }
-    }
-
-    @Test
     @Deployment
     public void testGetJobExceptionStacktrace() {
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exceptionInJobExecution");
@@ -162,7 +100,7 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
             managementService.moveTimerToExecutableJob(timerJob.getId());
             managementService.executeJob(timerJob.getId());
         })
-                .isInstanceOf(FlowableException.class)
+                .isExactlyInstanceOf(FlowableException.class)
                 .hasMessageContaining("This is an exception thrown from scriptTask");
 
         // Fetch the task to see that the exception that occurred is persisted
@@ -177,40 +115,6 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
         assertThat(exceptionStack)
                 .contains("This is an exception thrown from scriptTask");
     }
-
-    @Test
-    @Deployment
-    public void testGetJobExceptionMessageMaxLengthIsWellPersisted() {
-        String randomText = RandomStringUtils.randomAlphanumeric(2000);
-        Map<String, Object> parameters = new HashMap<>();
-        parameters.put("message_with_max_length", randomText);
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exceptionInJobExecution", parameters);
-
-        // The execution is waiting in the first usertask. This contains a boundary
-        // timer event which we will execute manual for testing purposes.
-        final Job timerJob = managementService.createTimerJobQuery().processInstanceId(processInstance.getId()).singleResult();
-
-        assertThat(timerJob).as("No job found for process instance").isNotNull();
-
-        assertThatThrownBy(() -> {
-            managementService.moveTimerToExecutableJob(timerJob.getId());
-            managementService.executeJob(timerJob.getId());
-        })
-                .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageContaining(randomText);
-
-        // Fetch the task to see that the exception that occurred is persisted
-        Job timerJob2 = managementService.createTimerJobQuery().processInstanceId(processInstance.getId()).singleResult();
-
-        assertThat(timerJob2).isNotNull();
-        assertThat(timerJob2.getExceptionMessage())
-                .isEqualTo(randomText);
-
-        // Get the full stacktrace using the managementService
-        String exceptionStack = managementService.getTimerJobExceptionStacktrace(timerJob2.getId());
-        assertThat(exceptionStack).contains(randomText);
-    }
-
 
     @Test
     public void testgetJobExceptionStacktraceUnexistingJobId() {
@@ -263,8 +167,8 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
         String correlationId = asyncJob.getCorrelationId();
         final String asyncId = asyncJob.getId();
         assertThatThrownBy(() -> managementService.executeJob(asyncId))
-                .isInstanceOf(FlowableException.class)
-                .hasMessageContaining("script evaluation failed");
+                .isExactlyInstanceOf(FlowableException.class)
+                .hasMessageContaining("problem evaluating script");
 
         asyncJob = managementService.createTimerJobQuery()
                 .processInstanceId(processInstance.getId())
@@ -280,8 +184,8 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
             Job job = managementService.moveTimerToExecutableJob(jobId);
             managementService.executeJob(job.getId());
         })
-                .isInstanceOf(FlowableException.class)
-                .hasMessageContaining("script evaluation failed");
+                .isExactlyInstanceOf(FlowableException.class)
+                .hasMessageContaining("problem evaluating script");
 
         asyncJob = managementService.createTimerJobQuery()
                 .processInstanceId(processInstance.getId())
@@ -295,8 +199,8 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
             Job job = managementService.moveTimerToExecutableJob(jobId2);
             managementService.executeJob(jobId2);
         })
-                .isInstanceOf(FlowableException.class)
-                .hasMessageContaining("script evaluation failed");
+                .isExactlyInstanceOf(FlowableException.class)
+                .hasMessageContaining("problem evaluating script");
 
         asyncJob = managementService.createDeadLetterJobQuery()
                 .processInstanceId(processInstance.getId())
@@ -397,8 +301,7 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
         // Try to delete the job. This should fail.
         assertThatThrownBy(() -> managementService.deleteJob(timerJob.getId()))
                 .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageContainingAll("Cannot delete JobEntity[", "jobHandlerType=trigger-timer, jobType=timer, elementId=escalationTimer",
-                        "processDefinitionId=timerOnTask:1:", " when the job is being executed. Try again later.");
+                .hasMessageContaining("Cannot delete job when the job is being executed. Try again later.");
 
         // Clean up
         managementService.executeJob(timerJob.getId());
@@ -425,8 +328,7 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
         // Try to delete the job. This should fail.
         assertThatThrownBy(() -> managementService.deleteTimerJob(timerJob.getId()))
                 .isExactlyInstanceOf(FlowableException.class)
-                .hasMessageContainingAll("Cannot delete TimerJobEntity[", "jobHandlerType=trigger-timer, jobType=timer, elementId=escalationTimer",
-                        "processDefinitionId=timerOnTask:1:", " when the job is being executed. Try again later.");
+                .hasMessageContaining("Cannot delete timer job when the job is being executed. Try again later.");
 
         // Clean up
         managementService.moveTimerToExecutableJob(timerJob.getId());
@@ -501,80 +403,6 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
                     .containsEntry(lockName, null);
         } finally {
             processEngineConfiguration.setLockPollRate(initialLockPollRate);
-            deletePropertyIfExists(lockName);
-        }
-    }
-
-    @Test
-    void testAcquireExpiredAcquiredLock() {
-        String lockName = "testLock";
-        try {
-            Instant startTime = Instant.now();
-            LockManager testLockManager1 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), processEngineConfiguration.getEngineCfgKey());
-
-            assertThat(testLockManager1.acquireLock()).isTrue();
-            // acquiring the lock from the same lock manager should always return true
-            assertThat(testLockManager1.acquireLock()).isTrue();
-            Map<String, String> properties = managementService.getProperties();
-            assertThat(properties).containsKey(lockName);
-            assertThat(properties.get(lockName)).isNotNull();
-
-            String updatedPropertyValue = startTime.minus(2, ChronoUnit.HOURS).toString();
-            updatePropertyValue(lockName, updatedPropertyValue);
-
-            LockManager testLockManager2 = managementService.getLockManager(lockName);
-            assertThat(testLockManager2.acquireLock()).isFalse();
-
-            testLockManager2 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), Duration.ofHours(3), processEngineConfiguration.getEngineCfgKey());
-            assertThat(testLockManager2.acquireLock()).isFalse();
-
-            properties = managementService.getProperties();
-            assertThat(properties.get(lockName)).isEqualTo(updatedPropertyValue);
-
-            testLockManager2 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), Duration.ofHours(1), processEngineConfiguration.getEngineCfgKey());
-            assertThat(testLockManager2.acquireLock()).isTrue();
-
-            properties = managementService.getProperties();
-            assertThat(properties.get(lockName)).isNotEqualTo(updatedPropertyValue);
-
-        } finally {
-            deletePropertyIfExists(lockName);
-        }
-    }
-
-    @Test
-    void testAcquireExpiredAcquiredLockWithZInTheHostName() {
-        String lockName = "testLock";
-        try {
-            Instant startTime = Instant.now();
-            LockManager testLockManager1 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), processEngineConfiguration.getEngineCfgKey());
-
-            assertThat(testLockManager1.acquireLock()).isTrue();
-            // acquiring the lock from the same lock manager should always return true
-            assertThat(testLockManager1.acquireLock()).isTrue();
-            Map<String, String> properties = managementService.getProperties();
-            assertThat(properties).containsKey(lockName);
-            assertThat(properties.get(lockName)).isNotNull();
-
-            String updatedPropertyValue = startTime.minus(2, ChronoUnit.HOURS).toString() + " - Zulu";
-            updatePropertyValue(lockName, updatedPropertyValue);
-
-            LockManager testLockManager2 = managementService.getLockManager(lockName);
-            assertThat(testLockManager2.acquireLock()).isFalse();
-
-            testLockManager2 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), Duration.ofHours(3), processEngineConfiguration.getEngineCfgKey());
-            assertThat(testLockManager2.acquireLock()).isFalse();
-
-            properties = managementService.getProperties();
-            assertThat(properties.get(lockName)).isEqualTo(updatedPropertyValue);
-
-            testLockManager2 = new LockManagerImpl(processEngineConfiguration.getCommandExecutor(), lockName, Duration.ofMinutes(1), Duration.ofHours(1), processEngineConfiguration.getEngineCfgKey());
-            assertThat(testLockManager2.acquireLock()).isTrue();
-
-            properties = managementService.getProperties();
-            assertThat(properties.get(lockName)).isNotEqualTo(updatedPropertyValue);
-
-        } finally {
             deletePropertyIfExists(lockName);
         }
     }
@@ -676,32 +504,7 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
 
             managementService.deleteDeadLetterJob(deadLetterJob.getId());
         }
-    }
-    
-    @Test
-    void testDirectInsertProperty() {
-        PropertyEntity property = managementService.executeCommand(context -> {
-            CommandContextUtil.getPropertyEntityManager(context).directInsertProperty("test-property", "1234");
-            PropertyEntity propertyEntity = CommandContextUtil.getPropertyEntityManager(context).findById("test-property");
-            return propertyEntity;
-        });
-        
-        assertThat(property.getName()).isEqualTo("test-property");
-        assertThat(property.getValue()).isEqualTo("1234");
-        assertThat(property.getRevision()).isEqualTo(1);
-        
-        property = managementService.executeCommand(context -> {
-            PropertyEntity propertyEntity = CommandContextUtil.getPropertyEntityManager(context).findById("test-property");
-            return propertyEntity;
-        });
-        
-        assertThat(property.getValue()).isEqualTo("1234");
-        
-        managementService.executeCommand(context -> {
-            PropertyEntity propertyEntity = CommandContextUtil.getPropertyEntityManager(context).findById("test-property");
-            CommandContextUtil.getPropertyEntityManager(context).delete(propertyEntity);
-            return null;
-        });
+
     }
 
     protected void deletePropertyIfExists(String propertyName) {
@@ -711,19 +514,6 @@ public class ManagementServiceTest extends PluggableFlowableTestCase {
             if (property != null) {
                 propertyEntityManager.delete(property);
             }
-            return null;
-        });
-    }
-
-    protected void updatePropertyValue(String propertyName, String propertyValue) {
-        managementService.executeCommand(commandContext -> {
-            PropertyEntityManager propertyEntityManager = CommandContextUtil.getPropertyEntityManager(commandContext);
-            PropertyEntity property = propertyEntityManager.findById(propertyName);
-            if (property == null) {
-                throw new FlowableObjectNotFoundException("Property with name " + propertyName + " does not exist");
-            }
-            property.setValue(propertyValue);
-            propertyEntityManager.update(property);
             return null;
         });
     }

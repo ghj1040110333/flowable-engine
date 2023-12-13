@@ -37,7 +37,6 @@ import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
 import org.flowable.engine.repository.ProcessDefinition;
-import org.flowable.engine.runtime.ActivityInstance;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.runtime.ProcessInstanceQuery;
@@ -81,14 +80,9 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
 
         processInstanceIds = new ArrayList<>();
         for (int i = 0; i < PROCESS_DEFINITION_KEY_DEPLOY_COUNT; i++) {
-            String processInstanceId = runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY, String.valueOf(i)).getId();
-            runtimeService.updateBusinessStatus(processInstanceId, String.valueOf(i));
-            processInstanceIds.add(processInstanceId);
+            processInstanceIds.add(runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY, String.valueOf(i)).getId());
         }
-        
-        String processInstanceId = runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY_2, "1").getId();
-        runtimeService.updateBusinessStatus(processInstanceId, "1");
-        processInstanceIds.add(processInstanceId);
+        processInstanceIds.add(runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY_2, "1").getId());
     }
 
     @AfterEach
@@ -165,29 +159,10 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
 
     @Test
     public void testQueryByProcessDefinitionCategory() {
-        List<ProcessInstance> instances = runtimeService.createProcessInstanceQuery().processDefinitionCategory(PROCESS_DEFINITION_CATEGORY).list();
-        assertThat(instances).hasSize(PROCESS_DEFINITION_KEY_DEPLOY_COUNT);
-
-        assertThat(instances)
-                .extracting(ProcessInstance::getBusinessKey, ProcessInstance::getProcessDefinitionKey, ProcessInstance::getProcessDefinitionName,
-                        ProcessInstance::getProcessDefinitionVersion, ProcessInstance::getProcessDefinitionCategory, ProcessInstance::getDeploymentId)
-                .as("businessKey, processDefinitionKey, processDefinitionName, processDefinitionVersion, processDefinitionCategory, deploymentId")
-                .containsExactlyInAnyOrder(
-                        tuple("0", PROCESS_DEFINITION_KEY, "oneTaskProcessName", 1, PROCESS_DEFINITION_CATEGORY, deployment.getId()),
-                        tuple("1", PROCESS_DEFINITION_KEY, "oneTaskProcessName", 1, PROCESS_DEFINITION_CATEGORY, deployment.getId()),
-                        tuple("2", PROCESS_DEFINITION_KEY, "oneTaskProcessName", 1, PROCESS_DEFINITION_CATEGORY, deployment.getId()),
-                        tuple("3", PROCESS_DEFINITION_KEY, "oneTaskProcessName", 1, PROCESS_DEFINITION_CATEGORY, deployment.getId()));
-
-        instances = runtimeService.createProcessInstanceQuery().processDefinitionCategory(PROCESS_DEFINITION_CATEGORY_2).list();
-        assertThat(instances).hasSize(PROCESS_DEFINITION_KEY_2_DEPLOY_COUNT);
-
-        assertThat(instances)
-                .extracting(ProcessInstance::getBusinessKey, ProcessInstance::getProcessDefinitionKey, ProcessInstance::getProcessDefinitionName,
-                        ProcessInstance::getProcessDefinitionVersion, ProcessInstance::getProcessDefinitionCategory, ProcessInstance::getDeploymentId)
-                .as("businessKey, processDefinitionKey, processDefinitionName, processDefinitionVersion, processDefinitionCategory, deploymentId")
-                .containsExactlyInAnyOrder(
-                        tuple("1", PROCESS_DEFINITION_KEY_2, "oneTaskProcess2Name", 1, PROCESS_DEFINITION_CATEGORY_2, deployment.getId())
-                );
+        assertThat(runtimeService.createProcessInstanceQuery().processDefinitionCategory(PROCESS_DEFINITION_CATEGORY).count())
+                .isEqualTo(PROCESS_DEFINITION_KEY_DEPLOY_COUNT);
+        assertThat(runtimeService.createProcessInstanceQuery().processDefinitionCategory(PROCESS_DEFINITION_CATEGORY_2).count())
+                .isEqualTo(PROCESS_DEFINITION_KEY_2_DEPLOY_COUNT);
     }
 
     @Test
@@ -326,38 +301,6 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
         assertThatThrownBy(() -> runtimeService.createProcessInstanceQuery().processInstanceBusinessKey(null).count())
                 .isExactlyInstanceOf(FlowableIllegalArgumentException.class);
     }
-    
-    @Test
-    public void testQueryByBusinessStatus() {
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatus("0").count()).isEqualTo(1);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatus("1").count()).isEqualTo(2);
-    }
-
-    @Test
-    public void testQueryByBusinessStatusLike() {
-        String processInstanceId = runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY).getId();
-        processInstanceIds.add(processInstanceId);
-        runtimeService.updateBusinessStatus(processInstanceId, "1A");
-        
-        processInstanceId = runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY).getId();
-        processInstanceIds.add(processInstanceId);
-        runtimeService.updateBusinessStatus(processInstanceId, "A1");
-        
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("%0").count()).isEqualTo(1);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("1%").count()).isEqualTo(3);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("%1").count()).isEqualTo(3);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("%1%").count()).isEqualTo(4);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("%A%").count()).isEqualTo(2);
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatusLike("%B%").count()).isZero();
-    }
-
-    @Test
-    public void testQueryByInvalidBusinessStatus() {
-        assertThat(runtimeService.createProcessInstanceQuery().processInstanceBusinessStatus("invalid").count()).isZero();
-
-        assertThatThrownBy(() -> runtimeService.createProcessInstanceQuery().processInstanceBusinessStatus(null).count())
-                .isExactlyInstanceOf(FlowableIllegalArgumentException.class);
-    }
 
     @Test
     public void testQueryByProcessDefinitionId() {
@@ -435,13 +378,13 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
         assertThat(processInstance.getProcessDefinitionVersion()).isEqualTo(1);
         assertThat(processInstance.getProcessDefinitionKey()).isEqualTo(PROCESS_DEFINITION_KEY);
         assertThat(processInstance.getProcessDefinitionName()).isEqualTo("oneTaskProcessName");
-        assertThat(processInstance.getProcessDefinitionCategory()).isEqualTo(PROCESS_DEFINITION_CATEGORY);
         assertThat(runtimeService.createProcessInstanceQuery().deploymentId(deployment.getId()).count()).isEqualTo(PROCESS_DEPLOY_COUNT);
     }
 
     @Test
     public void testQueryByDeploymentIdIn() {
-        List<String> deploymentIds = Collections.singletonList(deployment.getId());
+        List<String> deploymentIds = new ArrayList<>();
+        deploymentIds.add(deployment.getId());
         List<ProcessInstance> instances = runtimeService.createProcessInstanceQuery().deploymentIdIn(deploymentIds).list();
         assertThat(instances).hasSize(PROCESS_DEPLOY_COUNT);
 
@@ -458,15 +401,6 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
                 );
 
         assertThat(runtimeService.createProcessInstanceQuery().deploymentIdIn(deploymentIds).count()).isEqualTo(PROCESS_DEPLOY_COUNT);
-
-        assertThat(runtimeService.createProcessInstanceQuery().deploymentIdIn(Collections.singletonList("dummy")).list()).isEmpty();
-
-        assertThat(runtimeService.createProcessInstanceQuery()
-                .or()
-                .processInstanceId("invalid")
-                .deploymentIdIn(deploymentIds)
-                .endOr()
-                .count()).isEqualTo(PROCESS_DEPLOY_COUNT);
     }
 
     @Test
@@ -2357,94 +2291,5 @@ public class ProcessInstanceQueryTest extends PluggableFlowableTestCase {
                 .containsExactlyInAnyOrder(
                         tuple("With string value", processWithStringValue.getId())
                 );
-    }
-
-    @Test
-    @Deployment(resources = {
-            "org/flowable/engine/test/api/simpleParallelCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleInnerCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleProcessWithUserTasks.bpmn20.xml",
-            "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml"
-    })
-    public void testQueryByRootScopeId() {
-        runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-        List<String> validationList = runtimeService.createProcessInstanceQuery().list().stream().map(ProcessInstance::getId).toList();
-
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-
-        ActivityInstance firstLevelCallActivity1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(processInstance.getId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1_1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance thirdLevelCallActivity1_1_1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(secondLevelCallActivity1_1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1_2 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity2").singleResult();
-
-        ActivityInstance firstLevelCallActivity2 = runtimeService.createActivityInstanceQuery().processInstanceId(processInstance.getId())
-                .activityId("callActivity2").singleResult();
-
-        List<ProcessInstance> result = runtimeService.createProcessInstanceQuery().processInstanceRootScopeId(processInstance.getId()).list();
-
-        assertThat(result)
-                .extracting(ProcessInstance::getId, ProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(firstLevelCallActivity1.getCalledProcessInstanceId(), "simpleInnerParallelCallActivity"),
-                        tuple(secondLevelCallActivity1_1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(thirdLevelCallActivity1_1_1.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(secondLevelCallActivity1_2.getCalledProcessInstanceId(), "oneTaskProcess"),
-                        tuple(firstLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
-
-        assertThat(result).extracting(ProcessInstance::getId).doesNotContainAnyElementsOf(validationList);
-    }
-
-    @Test
-    @Deployment(resources = {
-            "org/flowable/engine/test/api/simpleParallelCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleInnerCallActivity.bpmn20.xml",
-            "org/flowable/engine/test/api/simpleProcessWithUserTasks.bpmn20.xml",
-            "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml"
-    })
-    public void testQueryByParentScopeId() {
-        ProcessInstance validationProcessInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
-        ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("simpleParallelCallActivity");
-
-        List<ProcessInstance> result = runtimeService.createProcessInstanceQuery().processInstanceParentScopeId(processInstance.getId()).list();
-        assertThat(result).isEmpty();
-
-        assertThat(result).extracting(ProcessInstance::getId).doesNotContain(
-                validationProcessInstance.getId()
-        );
-
-        ActivityInstance firstLevelCallActivity1 = runtimeService.createActivityInstanceQuery().processInstanceId(processInstance.getId())
-                .activityId("callActivity1").singleResult();
-
-        ActivityInstance secondLevelCallActivity1 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity1").singleResult();
-        ActivityInstance secondLevelCallActivity2 = runtimeService.createActivityInstanceQuery()
-                .processInstanceId(firstLevelCallActivity1.getCalledProcessInstanceId())
-                .activityId("callActivity2").singleResult();
-
-        result = runtimeService.createProcessInstanceQuery().processInstanceParentScopeId(firstLevelCallActivity1.getCalledProcessInstanceId()).list();
-
-        assertThat(result)
-                .extracting(ProcessInstance::getId, ProcessInstance::getProcessDefinitionKey)
-                .containsExactlyInAnyOrder(
-                        tuple(secondLevelCallActivity1.getCalledProcessInstanceId(), "simpleProcessWithUserTaskAndCallActivity"),
-                        tuple(secondLevelCallActivity2.getCalledProcessInstanceId(), "oneTaskProcess")
-                );
-
-        assertThat(result).extracting(ProcessInstance::getId).doesNotContain(
-                validationProcessInstance.getId()
-        );
     }
 }

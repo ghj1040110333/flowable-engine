@@ -79,8 +79,7 @@ public class ExclusiveGatewayTest extends PluggableFlowableTestCase {
     public void testNoSequenceFlowSelected() {
         assertThatThrownBy(() -> runtimeService.startProcessInstanceByKey("exclusiveGwNoSeqFlowSelected", CollectionUtil.singletonMap("input", 4)))
                 .isInstanceOf(FlowableException.class)
-                .hasMessageStartingWith("No outgoing sequence flow of the exclusive gateway " + "'exclusiveGw' could be selected for continuing Execution[ id")
-                .hasMessageContainingAll(" - definition 'exclusiveGwNoSeqFlowSelected:1:", " - activity 'exclusiveGw'");
+                .hasMessage("No outgoing sequence flow of the exclusive gateway " + "'exclusiveGw' could be selected for continuing the process");
     }
 
     /**

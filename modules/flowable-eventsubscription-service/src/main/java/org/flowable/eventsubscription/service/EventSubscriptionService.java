@@ -74,11 +74,7 @@ public interface EventSubscriptionService {
     void updateEventSubscriptionTenantId(String oldTenantId, String newTenantId);
     
     void updateEventSubscription(EventSubscriptionEntity eventSubscription);
-
-    boolean lockEventSubscription(String eventSubscriptionId);
-
-    void unlockEventSubscription(String eventSubscriptionId);
-
+    
     void deleteEventSubscription(EventSubscriptionEntity eventSubscription);
     
     void deleteEventSubscriptionsByExecutionId(String executionId);

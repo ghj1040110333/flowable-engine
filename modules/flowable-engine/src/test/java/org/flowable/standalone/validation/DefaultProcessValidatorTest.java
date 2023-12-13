@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,7 +63,7 @@ public class DefaultProcessValidatorTest {
         assertThat(bpmnModel).isNotNull();
 
         List<ValidationError> allErrors = processValidator.validate(bpmnModel);
-        assertThat(allErrors).hasSize(74);
+        assertThat(allErrors).hasSize(71);
 
         String setName = ValidatorSetNames.FLOWABLE_EXECUTABLE_PROCESS; // shortening it a bit
 
@@ -79,11 +80,9 @@ public class DefaultProcessValidatorTest {
         assertProcessElementError(problems.get(0));
 
         // Execution listeners
-        problems = findErrors(allErrors, setName, Problems.EXECUTION_LISTENER_IMPLEMENTATION_MISSING, 3);
+        problems = findErrors(allErrors, setName, Problems.EXECUTION_LISTENER_IMPLEMENTATION_MISSING, 2);
         assertProcessElementError(problems.get(0));
-        assertCommonProblemFieldForActivity(problems.get(2));
-        ValidationError missingScriptInfoExecutionListener = problems.get(1);
-        assertThat(missingScriptInfoExecutionListener.getDefaultDescription()).contains("Listener of type 'script' expects a <script> child element");
+        assertCommonProblemFieldForActivity(problems.get(1));
 
         // Association
         problems = findErrors(allErrors, setName, Problems.ASSOCIATION_INVALID_SOURCE_REFERENCE, 1);
@@ -117,15 +116,8 @@ public class DefaultProcessValidatorTest {
         assertCommonProblemFieldForActivity(problems.get(0));
 
         // User task
-        problems = findErrors(allErrors, setName, Problems.USER_TASK_LISTENER_IMPLEMENTATION_MISSING, 2);
+        problems = findErrors(allErrors, setName, Problems.USER_TASK_LISTENER_IMPLEMENTATION_MISSING, 1);
         assertCommonProblemFieldForActivity(problems.get(0));
-        ValidationError missingScriptInfo = problems.get(1);
-        assertCommonProblemFieldForActivity(missingScriptInfo);
-        assertThat(missingScriptInfo.getDefaultDescription()).contains("Listener of type 'script' expects a <script> child element");
-
-        problems = findErrors(allErrors, setName, Problems.USER_TASK_LISTENER_MISSING_EVENT, 1);
-        assertCommonProblemFieldForActivity(problems.get(0));
-        assertThat(problems.get(0).getDefaultDescription()).contains("Element 'event' is mandatory on taskListener");
 
         // Service task
         problems = findErrors(allErrors, setName, Problems.SERVICE_TASK_RESULT_VAR_NAME_WITH_DELEGATE, 1);
@@ -259,7 +251,7 @@ public class DefaultProcessValidatorTest {
     }
 
     @Test
-    public void testWarningError() throws XMLStreamException {
+    public void testWarningError() throws UnsupportedEncodingException, XMLStreamException {
         String flowWithoutConditionNoDefaultFlow = "<?xml version='1.0' encoding='UTF-8'?>"
                 + "<definitions id='definitions' xmlns='http://www.omg.org/spec/BPMN/20100524/MODEL' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns:activiti='http://activiti.org/bpmn' targetNamespace='Examples'>"
                 + "  <process id='exclusiveGwDefaultSequenceFlow'> " + "    <startEvent id='theStart' /> "
@@ -350,54 +342,6 @@ public class DefaultProcessValidatorTest {
     }
 
     @Test
-    void testEventSubProcessWithCancelStart() {
-        BpmnModel bpmnModel = readBpmnModelFromXml("org/flowable/standalone/validation/eventSubProcessWithCancelStartEvent.bpmn20.xml");
-
-        List<ValidationError> errors = processValidator.validate(bpmnModel);
-        assertThat(errors).hasSize(1);
-        ValidationError error = errors.get(0);
-        assertThat(error.getProblem()).isEqualTo(Problems.EVENT_SUBPROCESS_INVALID_START_EVENT_DEFINITION);
-        assertThat(error.getDefaultDescription()).isEqualTo("start event of event subprocess must be of type 'error', 'timer', 'message' or 'signal'");
-        assertThat(error.getActivityId()).isEqualTo("cancelStartEventSubProcess");
-        assertThat(error.getActivityName()).isEqualTo("Cancel Event Sub Process");
-        assertThat(error.isWarning()).isFalse();
-        assertThat(error.getXmlLineNumber()).isEqualTo(12);
-        assertThat(error.getXmlColumnNumber()).isEqualTo(41);
-    }
-
-    @Test
-    void testInvalidMultiInstanceActivity() {
-        BpmnModel bpmnModel = readBpmnModelFromXml("org/flowable/standalone/validation/invalidMultiInstanceActivity.bpmn20.xml");
-
-        List<ValidationError> errors = processValidator.validate(bpmnModel);
-        assertThat(errors).hasSize(1);
-        ValidationError error = errors.get(0);
-        assertThat(error.getProblem()).isEqualTo(Problems.MULTI_INSTANCE_MISSING_COLLECTION);
-        assertThat(error.getDefaultDescription()).isEqualTo("Either loopCardinality or loopDataInputRef/flowable:collection must been set");
-        assertThat(error.getActivityId()).isEqualTo("multiInstanceServiceTask");
-        assertThat(error.getActivityName()).isEqualTo("Multi Instance Service Task");
-        assertThat(error.isWarning()).isFalse();
-        assertThat(error.getXmlLineNumber()).isEqualTo(9);
-        assertThat(error.getXmlColumnNumber()).isEqualTo(47);
-    }
-
-    @Test
-    void testIntermediateTimerThrowEvent() {
-        BpmnModel bpmnModel = readBpmnModelFromXml("org/flowable/standalone/validation/intermediateTimerThrowEvent.bpmn20.xml");
-
-        List<ValidationError> errors = processValidator.validate(bpmnModel);
-        assertThat(errors).hasSize(1);
-        ValidationError error = errors.get(0);
-        assertThat(error.getProblem()).isEqualTo(Problems.THROW_EVENT_INVALID_EVENTDEFINITION);
-        assertThat(error.getDefaultDescription()).isEqualTo("Unsupported intermediate throw event type");
-        assertThat(error.getActivityId()).isEqualTo("timerThrow");
-        assertThat(error.getActivityName()).isEqualTo("Timer Throw");
-        assertThat(error.isWarning()).isFalse();
-        assertThat(error.getXmlLineNumber()).isEqualTo(8);
-        assertThat(error.getXmlColumnNumber()).isEqualTo(35);
-    }
-
-    @Test
     void testExternalWorkerTaskWithoutTopic() {
         BpmnModel bpmnModel = readBpmnModelFromXml("org/flowable/standalone/validation/processWithInvalidExternalWorkerTask.bpmn20.xml");
 
@@ -407,19 +351,6 @@ public class DefaultProcessValidatorTest {
                 .extracting(ValidationError::getProblem, ValidationError::getDefaultDescription, ValidationError::getActivityId, ValidationError::isWarning)
                 .containsExactlyInAnyOrder(
                         tuple(Problems.EXTERNAL_WORKER_TASK_NO_TOPIC, "No topic is defined on the external worker task", "externalWorkerServiceTask", false)
-                );
-    }
-
-    @Test
-    void testMailTask() {
-        BpmnModel bpmnModel = readBpmnModelFromXml("org/flowable/standalone/validation/processWithMailTask.bpmn20.xml");
-
-        List<ValidationError> errors = processValidator.validate(bpmnModel);
-
-        assertThat(errors)
-                .extracting(ValidationError::getProblem, ValidationError::getDefaultDescription, ValidationError::getActivityId, ValidationError::isWarning)
-                .containsExactlyInAnyOrder(
-                        tuple(Problems.MAIL_TASK_NO_RECIPIENT, "No recipient is defined on the mail activity", "sendMailWithoutanything", false)
                 );
     }
 

@@ -33,13 +33,8 @@ public class ThrowCustomExceptionDelegate implements JavaDelegate {
         if (StringUtils.isNotEmpty(exceptionClassName)) {
             RuntimeException exception = null;
             try {
-                Object exceptionMessage = execution.getVariable("exceptionMessage");
                 Class<?> clazz = Class.forName(exceptionClassName);
-                if (exceptionMessage != null) {
-                    exception = (RuntimeException) clazz.getConstructor(String.class).newInstance(exceptionMessage.toString());
-                } else {
-                    exception = (RuntimeException) clazz.getConstructor().newInstance();
-                }
+                exception = (RuntimeException) clazz.newInstance();
 
             } catch (Exception e) {
                 throw new FlowableException("Class not found", e);

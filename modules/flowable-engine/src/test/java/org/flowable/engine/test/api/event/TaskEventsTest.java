@@ -238,7 +238,7 @@ public class TaskEventsTest extends PluggableFlowableTestCase {
             listener.clearEventsReceived();
 
             // Delete standalone task, only a delete-event should be dispatched
-            taskService.deleteTask(task.getId(), true);
+            taskService.deleteTask(task.getId());
 
             assertThat(listener.getEventsReceived()).hasSize(1);
             event = (FlowableEngineEntityEvent) listener.getEventsReceived().get(0);
@@ -256,8 +256,9 @@ public class TaskEventsTest extends PluggableFlowableTestCase {
                 task = taskService.createTaskQuery().taskId(taskId).singleResult();
                 if (task != null) {
                     // If task still exists, delete it to have a clean DB after test
-                    taskService.deleteTask(taskId, true);
+                    taskService.deleteTask(taskId);
                 }
+                historyService.deleteHistoricTaskInstance(taskId);
                 managementService.executeCommand(commandContext -> {
                     processEngineConfiguration.getTaskServiceConfiguration().getHistoricTaskService().deleteHistoricTaskLogEntriesForTaskId(taskId);
                     return null;
@@ -408,7 +409,13 @@ public class TaskEventsTest extends PluggableFlowableTestCase {
         } finally {
             if (task != null) {
                 String taskId = task.getId();
-                taskService.deleteTask(taskId, true);
+                task = taskService.createTaskQuery().taskId(taskId).singleResult();
+                if (task != null) {
+                    // If task still exists, delete it to have a clean DB after
+                    // test
+                    taskService.deleteTask(taskId);
+                }
+                historyService.deleteHistoricTaskInstance(taskId);
                 managementService.executeCommand(commandContext -> {
                     processEngineConfiguration.getTaskServiceConfiguration().getHistoricTaskService().deleteHistoricTaskLogEntriesForTaskId(taskId);
                     return null;

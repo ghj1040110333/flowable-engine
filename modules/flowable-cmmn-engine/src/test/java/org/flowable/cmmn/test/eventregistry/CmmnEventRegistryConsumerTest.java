@@ -17,18 +17,26 @@ import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.List;
+import java.util.Random;
 
 import org.flowable.cmmn.api.repository.CaseDefinition;
 import org.flowable.cmmn.api.runtime.CaseInstance;
-import org.flowable.cmmn.api.runtime.PlanItemInstance;
 import org.flowable.cmmn.engine.test.CmmnDeployment;
 import org.flowable.common.engine.api.constant.ReferenceTypes;
 import org.flowable.common.engine.api.scope.ScopeTypes;
+import org.flowable.eventregistry.api.EventDeployment;
+import org.flowable.eventregistry.api.EventRegistry;
+import org.flowable.eventregistry.api.EventRepositoryService;
+import org.flowable.eventregistry.api.InboundEventChannelAdapter;
 import org.flowable.eventregistry.api.model.EventPayloadTypes;
+import org.flowable.eventregistry.model.InboundChannelModel;
 import org.flowable.eventsubscription.api.EventSubscription;
 import org.flowable.task.api.Task;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -36,9 +44,49 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * @author Joram Barrez
  * @author Filip Hrisafov
  */
-public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryConsumerTest {
+public class CmmnEventRegistryConsumerTest extends FlowableEventRegistryCmmnTestCase {
 
-    protected ObjectMapper objectMapper = new ObjectMapper();
+    protected TestInboundEventChannelAdapter inboundEventChannelAdapter;
+
+    @Before
+    public void registerEventDefinition() {
+        inboundEventChannelAdapter = setupTestChannel();
+
+        getEventRepositoryService().createEventModelBuilder()
+                .key("myEvent")
+                .resourceName("myEvent.event")
+                .correlationParameter("customerId", EventPayloadTypes.STRING)
+                .correlationParameter("orderId", EventPayloadTypes.STRING)
+                .payload("payload1", EventPayloadTypes.STRING)
+                .payload("payload2", EventPayloadTypes.INTEGER)
+                .deploy();
+    }
+
+    protected TestInboundEventChannelAdapter setupTestChannel() {
+        TestInboundEventChannelAdapter inboundEventChannelAdapter = new TestInboundEventChannelAdapter();
+        getEventRegistryEngineConfiguration().getExpressionManager().getBeans()
+                .put("inboundEventChannelAdapter", inboundEventChannelAdapter);
+
+        getEventRepositoryService().createInboundChannelModelBuilder()
+                .key("test-channel")
+                .resourceName("test.channel")
+                .channelAdapter("${inboundEventChannelAdapter}")
+                .jsonDeserializer()
+                .detectEventKeyUsingJsonField("type")
+                .jsonFieldsMapDirectlyToPayload()
+                .deploy();
+
+        return inboundEventChannelAdapter;
+    }
+
+    @After
+    public void unregisterEventDefinition() {
+        EventRepositoryService eventRepositoryService = getEventRepositoryService();
+        List<EventDeployment> deployments = eventRepositoryService.createDeploymentQuery().list();
+        for (EventDeployment eventDeployment : deployments) {
+            eventRepositoryService.deleteDeployment(eventDeployment.getId());
+        }
+    }
 
     @Test
     @CmmnDeployment
@@ -261,6 +309,9 @@ public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryCons
         CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceQuery().singleResult();
         assertThat(caseInstance.getCaseDefinitionId()).isEqualTo(caseDefinition.getId());
 
+        // Starting is always async
+        cmmnManagementService.executeJob(cmmnManagementService.createJobQuery().caseDefinitionId(caseDefinition.getId()).singleResult().getId());
+
         eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
         assertThat(eventSubscriptions)
             .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId,  EventSubscription::getScopeType, EventSubscription::getScopeId)
@@ -317,14 +368,13 @@ public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryCons
                         entry("anotherVarName", "Hello World")
                 );
     }
-    
+
     @Test
     @CmmnDeployment
     public void testCaseStartOnlyOneInstance() {
         for (int i = 1; i <= 9; i++) {
             inboundEventChannelAdapter.triggerTestEvent("testCustomer");
             assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(1);
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(2);
         }
         assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceId()).isNotNull();
         assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceType()).isEqualTo(ReferenceTypes.EVENT_CASE);
@@ -332,67 +382,9 @@ public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryCons
         for (int i = 1; i <= 4; i++) {
             inboundEventChannelAdapter.triggerTestEvent("anotherCustomer");
             assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(2);
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(4);
         }
     }
     
-    @Test
-    @CmmnDeployment(resources = "org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testCaseStartOnlyOneInstance.cmmn")
-    public void testCaseStartOnlyOneInstanceWithAsyncStartInConfiguration() {
-        boolean originalEventRegistryStartCaseInstanceAsync = cmmnEngineConfiguration.isEventRegistryStartCaseInstanceAsync();
-
-        try {
-            cmmnEngineConfiguration.setEventRegistryStartCaseInstanceAsync(true);
-            for (int i = 1; i <= 9; i++) {
-                inboundEventChannelAdapter.triggerTestEvent("testCustomer");
-                assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(1);
-                assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(0);
-            }
-
-            assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceId()).isNotNull();
-            assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceType()).isEqualTo(ReferenceTypes.EVENT_CASE);
-
-            waitForJobExecutorToProcessAllJobs();
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(2);
-
-            for (int i = 1; i <= 4; i++) {
-                inboundEventChannelAdapter.triggerTestEvent("anotherCustomer");
-                assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(2);
-                assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(2);
-            }
-
-            waitForJobExecutorToProcessAllJobs();
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(4);
-        } finally {
-            cmmnEngineConfiguration.setEventRegistryStartCaseInstanceAsync(originalEventRegistryStartCaseInstanceAsync);
-        }
-    }
-
-    @Test
-    @CmmnDeployment(resources = "org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testCaseStartOnlyOneInstanceAsync.cmmn")
-    public void testCaseStartOnlyOneInstanceWithAsyncStartInCaseModel() {
-        for (int i = 1; i <= 9; i++) {
-            inboundEventChannelAdapter.triggerTestEvent("testCustomer");
-            assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(1);
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(0);
-        }
-
-        assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceId()).isNotNull();
-        assertThat(cmmnRuntimeService.createCaseInstanceQuery().singleResult().getReferenceType()).isEqualTo(ReferenceTypes.EVENT_CASE);
-
-        waitForJobExecutorToProcessAllJobs();
-        assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(2);
-
-        for (int i = 1; i <= 4; i++) {
-            inboundEventChannelAdapter.triggerTestEvent("anotherCustomer");
-            assertThat(cmmnRuntimeService.createCaseInstanceQuery().list()).hasSize(2);
-            assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(2);
-        }
-
-        waitForJobExecutorToProcessAllJobs();
-        assertThat(cmmnTaskService.createTaskQuery().count()).isEqualTo(4);
-    }
-
     @Test
     @CmmnDeployment(resources = "org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testCaseStartOnlyOneInstance.cmmn")
     public void testCaseStartOneInstanceWithMultipleCaseDefinitionVersions() {
@@ -420,251 +412,53 @@ public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryCons
         }
     }
 
-    @Test
-    public void testEventRegistrySubscriptionsRecreatedOnDeploymentDelete() {
-        org.flowable.cmmn.api.repository.CmmnDeployment deployment = cmmnRepositoryService.createDeployment()
-                .addClasspathResource("org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testRedeploy.cmmn")
-                .deploy();
-        addDeploymentForAutoCleanup(deployment);
-        CaseDefinition caseDefinition = cmmnRepositoryService.createCaseDefinitionQuery().deploymentId(deployment.getId()).singleResult();
+    private static class TestInboundEventChannelAdapter implements InboundEventChannelAdapter {
 
-        // After deploying, there should be one eventsubscription: to start the case instance
-        List<EventSubscription> eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId, EventSubscription::getScopeId)
-                .containsOnly(tuple("myEvent", caseDefinition.getId(), null));
+        public InboundChannelModel inboundChannelModel;
+        public EventRegistry eventRegistry;
 
-        // After the case instance is started, there should be one additional eventsubscription
-        inboundEventChannelAdapter.triggerTestEvent();
-        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceQuery().singleResult();
-        assertThat(caseInstance.getCaseDefinitionId()).isEqualTo(caseDefinition.getId());
+        @Override
+        public void setInboundChannelModel(InboundChannelModel inboundChannelModel) {
+            this.inboundChannelModel = inboundChannelModel;
+        }
 
-        eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId,  EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, null),
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, caseInstance.getId())
-                );
+        @Override
+        public void setEventRegistry(EventRegistry eventRegistry) {
+            this.eventRegistry = eventRegistry;
+        }
 
-        // Redeploying the same definition:
-        // Event subscription to start should reflect new definition id
-        // Existing subscription for event listener should remain
-        org.flowable.cmmn.api.repository.CmmnDeployment redeployment = cmmnRepositoryService.createDeployment()
-                .addClasspathResource("org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testRedeploy.cmmn")
-                .deploy();
-        addDeploymentForAutoCleanup(redeployment);
-        CaseDefinition caseDefinitionAfterRedeploy = cmmnRepositoryService.createCaseDefinitionQuery().deploymentId(redeployment.getId()).singleResult();
+        public void triggerTestEvent() {
+            triggerTestEvent(null);
+        }
 
-        eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId,  EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, null), // Note the different definition id
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, caseInstance.getId()) // Note the old definition id
-                );
+        public void triggerTestEvent(String customerId) {
+            triggerTestEvent(customerId, null);
+        }
 
-        // Triggering the instance event subscription should continue the case instance like before
-        assertThat(cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).list())
-                .extracting(Task::getName)
-                .containsOnly("My task 1");
+        public void triggerOrderTestEvent(String orderId) {
+            triggerTestEvent(null, orderId);
+        }
 
-        inboundEventChannelAdapter.triggerTestEvent();
+        public void triggerTestEvent(String customerId, String orderId) {
+            ObjectMapper objectMapper = new ObjectMapper();
 
-        assertThat(cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).list())
-                .extracting(Task::getName, Task::getScopeId)
-                .containsOnly(
-                        tuple("My task 1", caseInstance.getId()),
-                        tuple("My task 2", caseInstance.getId()));
+            ObjectNode json = objectMapper.createObjectNode();
+            json.put("type", "myEvent");
+            if (customerId != null) {
+                json.put("customerId", customerId);
+            }
 
-        autoCleanupDeploymentIds.remove(redeployment.getId());
-
-        // Removing the second definition should recreate the one from the first one
-        // There won't be a case instance since we will do cascaded delete of the deployment
-        cmmnRepositoryService.deleteDeployment(redeployment.getId(), true);
-
-        assertThat(cmmnRuntimeService.createEventSubscriptionQuery().list())
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId, EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, null)
-                );
-    }
-
-    @Test
-    public void testEventRegistrySubscriptionsShouldNotBeRecreatedOnNonLatestDeploymentDelete() {
-        org.flowable.cmmn.api.repository.CmmnDeployment deployment = cmmnRepositoryService.createDeployment()
-                .addClasspathResource("org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testRedeploy.cmmn")
-                .deploy();
-        addDeploymentForAutoCleanup(deployment);
-        CaseDefinition caseDefinition = cmmnRepositoryService.createCaseDefinitionQuery().deploymentId(deployment.getId()).singleResult();
-
-        // After deploying, there should be one eventsubscription: to start the case instance
-        List<EventSubscription> eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId, EventSubscription::getScopeId)
-                .containsOnly(tuple("myEvent", caseDefinition.getId(), null));
-
-        // After the case instance is started, there should be one additional eventsubscription
-        inboundEventChannelAdapter.triggerTestEvent();
-        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceQuery().singleResult();
-        assertThat(caseInstance.getCaseDefinitionId()).isEqualTo(caseDefinition.getId());
-
-        eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId,  EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, null),
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, caseInstance.getId())
-                );
-
-        // Redeploying the same definition:
-        // Event subscription to start should reflect new definition id
-        // Existing subscription for event listener should remain
-        org.flowable.cmmn.api.repository.CmmnDeployment redeployment = cmmnRepositoryService.createDeployment()
-                .addClasspathResource("org/flowable/cmmn/test/eventregistry/CmmnEventRegistryConsumerTest.testRedeploy.cmmn")
-                .deploy();
-        addDeploymentForAutoCleanup(redeployment);
-        CaseDefinition caseDefinitionAfterRedeploy = cmmnRepositoryService.createCaseDefinitionQuery().deploymentId(redeployment.getId()).singleResult();
-
-        eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().scopeType(ScopeTypes.CMMN).list();
-        assertThat(eventSubscriptions)
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId,  EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, null), // Note the different definition id
-                        tuple("myEvent", caseDefinition.getId(), ScopeTypes.CMMN, caseInstance.getId()) // Note the old definition id
-                );
-
-        // Triggering the instance event subscription should continue the case instance like before
-        assertThat(cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).list())
-                .extracting(Task::getName)
-                .containsOnly("My task 1");
-
-        inboundEventChannelAdapter.triggerTestEvent();
-
-        assertThat(cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).list())
-                .extracting(Task::getName, Task::getScopeId)
-                .containsOnly(
-                        tuple("My task 1", caseInstance.getId()),
-                        tuple("My task 2", caseInstance.getId()));
-
-        autoCleanupDeploymentIds.remove(deployment.getId());
-
-        // Removing the second definition should recreate the one from the first one
-        // There won't be a case instance since we will do cascaded delete of the deployment
-        cmmnRepositoryService.deleteDeployment(deployment.getId(), true);
-
-        caseInstance = cmmnRuntimeService.createCaseInstanceQuery().singleResult();
-        assertThat(caseInstance.getCaseDefinitionId()).isEqualTo(caseDefinitionAfterRedeploy.getId());
-
-        assertThat(cmmnRuntimeService.createEventSubscriptionQuery().list())
-                .extracting(EventSubscription::getEventType, EventSubscription::getScopeDefinitionId, EventSubscription::getScopeType, EventSubscription::getScopeId)
-                .containsOnly(
-                        tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, null),
-                        tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, caseInstance.getId())
-                );
-    }
-
-    @Test
-    @CmmnDeployment
-    public void testEventListenerInRepeatableStage() {
-        getEventRepositoryService().createEventModelBuilder()
-                .key("stopEvent")
-                .resourceName("stopEvent.event")
-                .correlationParameter("corr", EventPayloadTypes.STRING)
-                .deploy();
-
-        getEventRepositoryService().createEventModelBuilder()
-                .key("startEvent")
-                .resourceName("startEvent.event")
-                .payload("eventField1", EventPayloadTypes.STRING)
-                .deploy();
-
-        CaseInstance myCase = cmmnRuntimeService.createCaseInstanceBuilder()
-                .caseDefinitionKey("testEventListenerInRepeatableStage")
-                .start();
-
-        ObjectNode eventJson = objectMapper.createObjectNode();
-        eventJson.put("type", "startEvent");
-        eventJson.put("eventField1", "abc");
-
-        inboundEventChannelAdapter.triggerTestEventWithJson(eventJson);
-
-        eventJson = objectMapper.createObjectNode();
-        eventJson.put("type", "startEvent");
-        eventJson.put("eventField1", "def");
-
-        inboundEventChannelAdapter.triggerTestEventWithJson(eventJson);
-
-        List<PlanItemInstance> planItemInstances = cmmnRuntimeService.createPlanItemInstanceQuery().planItemInstanceElementId("planItemeventListener2").list();
-        List<EventSubscription> eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list();
-
-        assertThat(planItemInstances.size()).isEqualTo(2);
-        assertThat(eventSubscriptions.size()).isEqualTo(2);
-
-        eventJson = objectMapper.createObjectNode();
-        eventJson.put("type", "stopEvent");
-        eventJson.put("corr", "abc");
-
-        inboundEventChannelAdapter.triggerTestEventWithJson(eventJson);
-
-        planItemInstances =  cmmnRuntimeService.createPlanItemInstanceQuery().planItemInstanceElementId("planItemeventListener2").list();
-        eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list();
-
-        assertThat(planItemInstances.size()).isEqualTo(1);
-        assertThat(eventSubscriptions.size()).isEqualTo(1);
-
-    }
-
-    @Test
-    @CmmnDeployment
-    public void testEventListenerInNestedRepeatableStage() {
-        getEventRepositoryService().createEventModelBuilder()
-                .key("stopEvent")
-                .resourceName("stopEvent.event")
-                .correlationParameter("corr", EventPayloadTypes.STRING)
-                .deploy();
-
-        getEventRepositoryService().createEventModelBuilder()
-                .key("startEvent")
-                .resourceName("startEvent.event")
-                .payload("eventField1", EventPayloadTypes.STRING)
-                .deploy();
-
-        String caseInstanceId = cmmnRuntimeService.createCaseInstanceBuilder()
-                .caseDefinitionKey("testEventListenerInRepeatableStage")
-                .start()
-                .getId();
-
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "startEvent").put("eventField1", "a"));
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "startEvent").put("eventField1", "b"));
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "startEvent").put("eventField1", "c"));
-
-        List<PlanItemInstance> eventListener2Instances = cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener2").list();
-        assertThat(eventListener2Instances.size()).isEqualTo(3);
-
-        List<PlanItemInstance> eventListener3Instances = cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener3").list();
-        assertThat(eventListener3Instances.size()).isEqualTo(3);
-
-        List<EventSubscription> eventSubscriptions = cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list();
-        assertThat(eventSubscriptions.size()).isEqualTo(6);
-
-        // Trigger the stop event should complete two stages
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "stopEvent").put("corr", "b"));
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener2").list()).hasSize(2);
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener3").list()).hasSize(2);
-        assertThat(cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list()).hasSize(4);
-
-        // Trigger the stop event should complete two stages
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "stopEvent").put("corr", "a"));
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener2").list()).hasSize(1);
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener3").list()).hasSize(1);
-        assertThat(cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list()).hasSize(2);
-
-        // Trigger the stop event should now terminate the case
-        inboundEventChannelAdapter.triggerTestEventWithJson(objectMapper.createObjectNode().put("type", "stopEvent").put("corr", "c"));
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener2").list()).hasSize(0);
-        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("eventListener3").list()).hasSize(0);
-        assertThat(cmmnRuntimeService.createEventSubscriptionQuery().eventType("stopEvent").list()).hasSize(0);
+            if (orderId != null) {
+                json.put("orderId", orderId);
+            }
+            json.put("payload1", "Hello World");
+            json.put("payload2", new Random().nextInt());
+            try {
+                eventRegistry.eventReceived(inboundChannelModel, objectMapper.writeValueAsString(json));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
     }
 

@@ -16,7 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +25,6 @@ import org.flowable.engine.history.HistoricProcessInstance;
 import org.flowable.engine.history.HistoricProcessInstanceQuery;
 import org.flowable.engine.impl.test.HistoryTestHelper;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
-import org.flowable.engine.runtime.Execution;
-import org.flowable.engine.runtime.ProcessInstance;
-import org.flowable.task.api.Task;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,6 +76,7 @@ public class HistoricProcessInstanceAndVariablesQueryTest extends PluggableFlowa
     @AfterEach
     protected void tearDown() throws Exception {
         deleteDeployments();
+
     }
 
     @Test
@@ -204,45 +201,9 @@ public class HistoricProcessInstanceAndVariablesQueryTest extends PluggableFlowa
             assertThat(instanceList).hasSize(4);
         }
     }
-    
-    @Test
-    public void testQueryOnTaskVariable() {
-        ProcessInstance taskProcessInstance = runtimeService.createProcessInstanceQuery().processDefinitionKey("oneTaskProcess3").singleResult();
-        Task task = taskService.createTaskQuery().processInstanceId(taskProcessInstance.getId()).singleResult();
-        taskService.setVariableLocal(task.getId(), "localVar", "test");
-        
-        assertThat(runtimeService.createProcessInstanceQuery().variableValueEquals("localVar", "test").list()).isEmpty();
-        
-        if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-            HistoricProcessInstance processInstance = historyService.createHistoricProcessInstanceQuery().includeProcessVariables()
-                    .variableValueEquals("anothertest", 123).singleResult();
-            Map<String, Object> variableMap = processInstance.getProcessVariables();
-            assertThat(variableMap).containsExactly(entry("anothertest", 123));
-            
-            assertThat(historyService.createHistoricProcessInstanceQuery().variableValueEquals("localVar", "test").list()).isEmpty();
-            assertThat(historyService.createHistoricProcessInstanceQuery().localVariableValueEquals("localVar", "test").list()).hasSize(1);
-        }
-    }
 
     @Test
-    public void testQueryWithLocalVariables() {
-        String processInstanceId = processInstanceIds.get(processInstanceIds.size() - 1);
-        Execution execution = runtimeService.createExecutionQuery().processInstanceId(processInstanceId).onlyChildExecutions().singleResult();
-        runtimeService.setVariableLocal(execution.getId(), "localVar1", "test");
-        runtimeService.setVariableLocal(execution.getId(), "localVar2", 123);
-        
-        if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-            HistoricProcessInstance processInstance = historyService.createHistoricProcessInstanceQuery()
-                    .processDefinitionKey(PROCESS_DEFINITION_KEY_3)
-                    .includeProcessVariables()
-                    .singleResult();
-            Map<String, Object> variableMap = processInstance.getProcessVariables();
-            assertThat(variableMap);
-        }
-    }
-
-    @Test
-    public void testQueryByProcessDefinition() {
+    public void testQueryByprocessDefinition() {
         if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
             // DeploymentId
             String deploymentId = repositoryService.createDeploymentQuery().list().get(0).getId();
@@ -502,7 +463,7 @@ public class HistoricProcessInstanceAndVariablesQueryTest extends PluggableFlowa
     }
 
     @Test
-    public void testOrQueryByProcessDefinition() {
+    public void testOrQueryByprocessDefinition() {
         if (HistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
             // DeploymentId
             String deploymentId = repositoryService.createDeploymentQuery().list().get(0).getId();
@@ -510,12 +471,7 @@ public class HistoricProcessInstanceAndVariablesQueryTest extends PluggableFlowa
                     .or().variableValueEquals("anothertest", "invalid").deploymentId(deploymentId).endOr();
             assertThat(historicprocessInstanceQuery.list()).hasSize(6);
             assertThat(historicprocessInstanceQuery.count()).isEqualTo(6);
-            Map<String, Object> variableMap = historicprocessInstanceQuery.list()
-                    .stream()
-                    .filter(p -> p.getId().equals(processInstanceIds.get(4)))
-                    .map(HistoricProcessInstance::getProcessVariables)
-                    .findAny()
-                    .orElse(Collections.emptyMap());
+            Map<String, Object> variableMap = historicprocessInstanceQuery.list().get(4).getProcessVariables();
             assertThat(variableMap)
                     .containsExactly(entry("anothertest", 123));
             for (HistoricProcessInstance processInstance : historicprocessInstanceQuery.list()) {
@@ -541,9 +497,9 @@ public class HistoricProcessInstanceAndVariablesQueryTest extends PluggableFlowa
             // ProcessDefinitionCategory
             processInstance = historyService.createHistoricProcessInstanceQuery().includeProcessVariables()
                     .or().variableValueEquals("anothertest", "invalid").processDefinitionCategory(PROCESS_DEFINITION_CATEGORY_2).endOr().singleResult();
+            variableMap = processInstance.getProcessVariables();
             assertThat(variableMap)
                     .containsExactly(entry("anothertest", 123));
-            assertThat(processInstance.getProcessDefinitionCategory()).isEqualTo(PROCESS_DEFINITION_CATEGORY_2);
 
             processInstance = historyService.createHistoricProcessInstanceQuery().includeProcessVariables()
                     .or().variableValueEquals("anothertest", "invalid").processDefinitionCategory("invalid").endOr().singleResult();

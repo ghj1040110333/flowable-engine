@@ -13,25 +13,18 @@
 package org.flowable.http.bpmn;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import jakarta.servlet.MultipartConfigElement;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.Part;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -45,7 +38,6 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.flowable.common.engine.impl.util.ReflectUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.ClassPathResource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,37 +67,29 @@ public class HttpServiceTaskTestServer {
                 new HttpConnectionFactory(httpConfig));
         httpConnector.setPort(HTTP_PORT);
 
+        // https connector configuration
+        // keytool -selfcert -alias Flowable -keystore keystore -genkey -keyalg RSA -sigalg SHA256withRSA -validity 36500
+        SslContextFactory sslContextFactory = new SslContextFactory();
+        sslContextFactory.setKeyStorePath(ReflectUtil.getResource("flowable.keystore").getFile());
+        sslContextFactory.setKeyStorePassword("Flowable");
+
+        HttpConfiguration httpsConfig = new HttpConfiguration();
+
+        ServerConnector httpsConnector = new ServerConnector(server,
+                new SslConnectionFactory(sslContextFactory, HttpVersion.HTTP_1_1.asString()),
+                new HttpConnectionFactory(httpsConfig));
+        httpsConnector.setPort(HTTPS_PORT);
+
+        server.setConnectors(new Connector[]{httpConnector, httpsConnector});
+
         try {
-            // https connector configuration
-            // keytool -selfcert -alias Flowable -keystore keystore -genkey -keyalg RSA -sigalg SHA256withRSA -validity 36500
-            SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
-            URL keystoreURL = ReflectUtil.getResource("flowable.keystore");
-            Path keystorePath = Paths.get(keystoreURL.toURI());
-            sslContextFactory.setKeyStorePath(keystorePath.toString());
-            sslContextFactory.setKeyStorePassword("Flowable");
-
-            HttpConfiguration httpsConfig = new HttpConfiguration();
-
-            SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, HttpVersion.HTTP_1_1.asString());
-            sslConnectionFactory.setEnsureSecureRequestCustomizer(false);
-            ServerConnector httpsConnector = new ServerConnector(server,
-                    sslConnectionFactory,
-                    new HttpConnectionFactory(httpsConfig));
-            httpsConnector.setPort(HTTPS_PORT);
-
-            server.setConnectors(new Connector[]{httpConnector, httpsConnector});
-            
             ServletContextHandler contextHandler = new ServletContextHandler(ServletContextHandler.SESSIONS);
             contextHandler.setContextPath("/");
-            MultipartConfigElement multipartConfig = new MultipartConfigElement((String) null);
-            ServletHolder httpServiceTaskServletHolder = new ServletHolder(new HttpServiceTaskTestServlet());
-            httpServiceTaskServletHolder.getRegistration().setMultipartConfig(multipartConfig);
-            contextHandler.addServlet(httpServiceTaskServletHolder, "/api/*");
+            contextHandler.addServlet(new ServletHolder(new HttpServiceTaskTestServlet()), "/api/*");
             contextHandler.addServlet(new ServletHolder(new SimpleHttpServiceTaskTestServlet()), "/test");
             contextHandler.addServlet(new ServletHolder(new HelloServlet()), "/hello");
             contextHandler.addServlet(new ServletHolder(new ArrayResponseServlet()), "/array-response");
             contextHandler.addServlet(new ServletHolder(new DeleteResponseServlet()), "/delete");
-            contextHandler.addServlet(new ServletHolder(new ClasspathResourceServlet()), "/resource");
             server.setHandler(contextHandler);
             server.start();
         } catch (Exception e) {
@@ -250,17 +234,7 @@ public class HttpServiceTaskTestServer {
                 data.getHeaders().put(headerName, headerList.toArray(new String[]{}));
             }
 
-            if (StringUtils.startsWith(req.getContentType(), "multipart/form-data")) {
-                for (Part part : req.getParts()) {
-                    data.getParts().computeIfAbsent(part.getName(), k -> new ArrayList<>()).add(HttpTestData.HttpTestPart.fromPart(part));
-                }
-
-            } else {
-
-                data.setBody(IOUtils.toString(req.getReader()));
-
-            }
-
+            data.setBody(IOUtils.toString(req.getReader()));
 
             if (data.getDelay() > 0) {
                 try {
@@ -337,22 +311,6 @@ public class HttpServiceTaskTestServer {
             resp.setStatus(200);
         }
 
-    }
-
-    protected static class ClasspathResourceServlet extends HttpServlet {
-
-        @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-            String resource = req.getParameter("resource");
-            if (StringUtils.isNotEmpty(resource)) {
-                resp.setStatus(200);
-                try (InputStream resourceStream = new ClassPathResource(resource).getInputStream()) {
-                    resp.getOutputStream().write(IOUtils.toByteArray(resourceStream));
-                }
-            } else {
-                resp.sendError(400, "resource not provided");
-            }
-        }
     }
 
     public static void setUp() {

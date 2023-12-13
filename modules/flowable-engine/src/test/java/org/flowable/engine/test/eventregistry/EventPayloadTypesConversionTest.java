@@ -17,7 +17,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.flowable.engine.impl.test.JobTestHelper;
 import org.flowable.engine.runtime.ProcessInstance;
@@ -355,7 +354,7 @@ public class EventPayloadTypesConversionTest extends FlowableEventRegistryBpmnTe
         public List<String> receivedEvents = new ArrayList<>();
 
         @Override
-        public void sendEvent(String rawEvent, Map<String, Object> headerMap) {
+        public void sendEvent(String rawEvent) {
             receivedEvents.add(rawEvent);
         }
     }

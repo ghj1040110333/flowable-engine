@@ -13,13 +13,8 @@
 package org.flowable.engine.test.bpmn.event.escalation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
-import org.flowable.common.engine.api.FlowableException;
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
-import org.flowable.engine.runtime.Execution;
-import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.test.Deployment;
 import org.flowable.task.api.Task;
 import org.junit.jupiter.api.Test;
@@ -61,28 +56,5 @@ public class BoundaryEscalationEventTest extends PluggableFlowableTestCase {
         // Completing the task will end the process instance
         taskService.complete(task.getId());
         assertProcessEnded(procId);
-    }
-    
-    @Test
-    @Deployment(resources = {
-            "org/flowable/engine/test/bpmn/event/escalation/BoundaryEscalationEventTest.testCatchEscalationOnCallActivitySuspendedParent.parent.bpmn20.xml",
-            "org/flowable/engine/test/bpmn/event/escalation/BoundaryEscalationEventTest.testCatchEscalationOnCallActivitySuspendedParent.child.bpmn20.xml" })
-    public void testCatchEscalationOnCallActivitySuspendedParent() {
-        ProcessInstance escalationParent = runtimeService.startProcessInstanceByKey("escalationParent");
-        String parentProcId = escalationParent.getId();
-        String childProcId = runtimeService.createProcessInstanceQuery().processDefinitionKey("escalationChild").singleResult().getId();
-        Execution boundaryEventExecution = runtimeService.createExecutionQuery().activityId("boundaryEventId").singleResult();
-        String boundaryEventExecutionId = boundaryEventExecution.getId();
-
-        runtimeService.suspendProcessInstanceById(parentProcId);
-
-        // Propagates escalation from the child process instance
-        ThrowingCallable propagateEscalation = () -> managementService
-                        .executeJob(managementService.createJobQuery().processInstanceId(childProcId).singleResult().getId());
-        assertThatThrownBy(propagateEscalation)
-                .isInstanceOf(FlowableException.class)
-                .hasMessage(
-                        "Cannot propagate escalation 'testChildEscalation' with code 'testEscalationCode', because Execution[ id '%s' ] - definition '%s' - activity 'boundaryEventId' - parent '%s' is suspended".formatted(
-                                boundaryEventExecutionId, escalationParent.getProcessDefinitionId(), boundaryEventExecution.getParentId()));
     }
 }

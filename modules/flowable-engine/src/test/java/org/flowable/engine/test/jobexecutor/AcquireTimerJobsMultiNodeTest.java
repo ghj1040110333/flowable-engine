@@ -76,10 +76,10 @@ class AcquireTimerJobsMultiNodeTest extends JobExecutorTestCase {
 
         JobServiceConfiguration jobServiceConfiguration = processEngineConfiguration.getJobServiceConfiguration();
 
-        AcquireTimerJobsRunnable runnable1 = new AcquireTimerJobsRunnable(asyncExecutor, jobServiceConfiguration.getJobManager(), 1);
+        AcquireTimerJobsRunnable runnable1 = new AcquireTimerJobsRunnable(asyncExecutor, jobServiceConfiguration.getJobManager());
         CompletableFuture.runAsync(runnable1, executorService);
 
-        AcquireTimerJobsRunnable runnable2 = new AcquireTimerJobsRunnable(asyncExecutor, jobServiceConfiguration.getJobManager(), 1);
+        AcquireTimerJobsRunnable runnable2 = new AcquireTimerJobsRunnable(asyncExecutor, jobServiceConfiguration.getJobManager());
         CompletableFuture.runAsync(runnable2, executorService);
 
         try {
@@ -117,7 +117,7 @@ class AcquireTimerJobsMultiNodeTest extends JobExecutorTestCase {
         protected CountDownLatch waitLatch;
 
         public CustomWaitCommandInvoker() {
-            super((commandContext, runnable) -> runnable.run(), null);
+            super((commandContext, runnable) -> runnable.run());
         }
 
         @Override

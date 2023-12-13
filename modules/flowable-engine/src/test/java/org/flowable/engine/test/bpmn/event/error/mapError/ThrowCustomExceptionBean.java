@@ -33,7 +33,7 @@ public class ThrowCustomExceptionBean {
             Exception exception = null;
             try {
                 Class<?> clazz = Class.forName(exceptionClassName);
-                exception = (Exception) clazz.getConstructor().newInstance();
+                exception = (Exception) clazz.newInstance();
 
             } catch (Exception e) {
                 throw new FlowableException("Class not found", e);

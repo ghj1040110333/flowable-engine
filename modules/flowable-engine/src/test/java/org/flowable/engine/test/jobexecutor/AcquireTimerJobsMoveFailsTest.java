@@ -84,7 +84,7 @@ class AcquireTimerJobsMoveFailsTest extends JobExecutorTestCase {
         internalJobManager.exceptionToThrow = new FlowableException("Moving job failed");
 
         AcquireTimerJobsRunnable runnable = new AcquireTimerJobsRunnable(asyncExecutor,
-                processEngineConfiguration.getJobServiceConfiguration().getJobManager(), 1);
+                processEngineConfiguration.getJobServiceConfiguration().getJobManager());
         CompletableFuture.runAsync(runnable, executorService);
 
         // wait for the acquire before stopping the loop
@@ -130,7 +130,7 @@ class AcquireTimerJobsMoveFailsTest extends JobExecutorTestCase {
         internalJobManager.exceptionToThrow = new FlowableOptimisticLockingException("Job already updated");
 
         AcquireTimerJobsRunnable runnable = new AcquireTimerJobsRunnable(asyncExecutor,
-                processEngineConfiguration.getJobServiceConfiguration().getJobManager(), 1);
+                processEngineConfiguration.getJobServiceConfiguration().getJobManager());
         CompletableFuture.runAsync(runnable, executorService);
 
         // wait for the acquire before stopping the loop
@@ -157,7 +157,7 @@ class AcquireTimerJobsMoveFailsTest extends JobExecutorTestCase {
         protected CountDownLatch unlockJobLatch;
 
         public CustomWaitCommandInvoker() {
-            super((commandContext, runnable) -> runnable.run(), null);
+            super((commandContext, runnable) -> runnable.run());
         }
 
         @Override
